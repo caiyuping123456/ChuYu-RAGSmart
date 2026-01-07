@@ -1,0 +1,21 @@
+
+1. 启动zookeeper
+./zookeeper-server-start.sh -daemon ../config/zookeeper.properties
+
+2. 启动server
+./kafka-server-start.sh -daemon ../config/server.properties
+
+3，启动主题
+业务主题：
+./kafka-topics.sh --create \
+  --topic file-processing-topic1 \
+  --bootstrap-server 127.0.0.1:9092 \
+  --partitions 3 \
+  --replication-factor 1
+
+死信队列
+./kafka-topics.sh --create \
+  --topic file-processing-dlt \
+  --bootstrap-server 127.0.0.1:9092 \
+  --partitions 3 \
+  --replication-factor 1
