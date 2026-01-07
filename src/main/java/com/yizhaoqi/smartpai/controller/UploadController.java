@@ -75,22 +75,46 @@ public class UploadController {
             @RequestParam(value = "isPublic", required = false, defaultValue = "false") boolean isPublic,
             @RequestParam("file") MultipartFile file,
             @RequestAttribute("userId") String userId) throws IOException {
-        
+        /**
+         * 这个方法是用于前端文件上传的
+         * 前端对文件进行提前设定好的大小进行分片
+         * 同时对文件进行md5文件生成
+         * 用于断点续传
+         * 保证了文件上传的高容错性
+         */
+        /**
+         * 这个是对这个方法进行性能检测
+         * 传入的是文件上传
+         */
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("UPLOAD_CHUNK");
         try {
             // 文件类型验证（仅在第一个分片时进行验证）
             if (chunkIndex == 0) {
+                /**
+                 * 这个是获取文件的类型，及对应的文件具体描述
+                 */
                 FileTypeValidationService.FileTypeValidationResult validationResult = 
                     fileTypeValidationService.validateFileType(fileName);
+                /**
+                 * 日志存储
+                 */
                 // 记录文件类型验证结果
                 LogUtils.logBusiness("UPLOAD_CHUNK", userId, "文件类型验证结果: fileName=%s, valid=%s, fileType=%s, message=%s", 
                         fileName, validationResult.isValid(), validationResult.getFileType(), validationResult.getMessage());
-                
+
+                /**
+                 * 这个是判断传入的文件类型是否是系统支持的类型
+                 * 只有当isValid为TRUE时才表示这个类型时系统支持的类型
+                 */
                 if (!validationResult.isValid()) {
                     LogUtils.logBusinessError("UPLOAD_CHUNK", userId, "文件类型验证失败: fileName=%s, fileType=%s", 
                             new RuntimeException(validationResult.getMessage()), fileName, validationResult.getFileType());
                     monitor.end("文件类型验证失败: " + validationResult.getMessage());
-                    
+
+                    /**
+                     * 这个是将异常直接放回到前端，告诉前端
+                     * 这个文件的类型，系统是不支持的
+                     */
                     Map<String, Object> errorResponse = new HashMap<>();
                     errorResponse.put("code", HttpStatus.BAD_REQUEST.value());
                     errorResponse.put("message", validationResult.getMessage());
@@ -99,42 +123,80 @@ public class UploadController {
                     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
                 }
             }
-            
+
+            /**
+             * 这个是通过文件的名字
+             * 获取文件的类型
+             */
             String fileType = getFileType(fileName);
+            /**
+             * 读取请求头中的 Content-Type 信息
+             * 比如：text/plain，application/pdf
+             */
             String contentType = file.getContentType();
             
             LogUtils.logBusiness("UPLOAD_CHUNK", userId, "接收到分片上传请求: fileMd5=%s, chunkIndex=%d, fileName=%s, fileType=%s, contentType=%s, fileSize=%d, totalSize=%d, orgTag=%s, isPublic=%s", 
                     fileMd5, chunkIndex, fileName, fileType, contentType, file.getSize(), totalSize, orgTag, isPublic);
-        
-        // 如果未指定组织标签，则获取用户的主组织标签
-        if (orgTag == null || orgTag.isEmpty()) {
-            try {
+
+            /**
+             * 这里是获取用户指定的文件空间
+             * 就是表示只对应标签的用户才能使用这个文件
+             * 同时，如果用户没有在文件上传时指定文件的标签
+             * 系统会自动的使用用户的主标签进行标记
+             * 所以这就是体现了主标签的作用
+             */
+            // 如果未指定组织标签，则获取用户的主组织标签
+            if (orgTag == null || orgTag.isEmpty()) {
+                try {
                     LogUtils.logBusiness("UPLOAD_CHUNK", userId, "组织标签未指定，尝试获取用户主组织标签: fileName=%s", fileName);
-                String primaryOrg = userService.getUserPrimaryOrg(userId);
-                orgTag = primaryOrg;
-                    LogUtils.logBusiness("UPLOAD_CHUNK", userId, "成功获取用户主组织标签: fileName=%s, orgTag=%s", fileName, orgTag);
-            } catch (Exception e) {
-                    LogUtils.logBusinessError("UPLOAD_CHUNK", userId, "获取用户主组织标签失败: fileName=%s", e, fileName);
-                    monitor.end("获取主组织标签失败: " + e.getMessage());
-                Map<String, Object> errorResponse = new HashMap<>();
-                errorResponse.put("code", HttpStatus.INTERNAL_SERVER_ERROR.value());
-                errorResponse.put("message", "获取用户主组织标签失败: " + e.getMessage());
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+                    /**
+                     * 这里是通过用户id获取用户的主标签
+                     * 注意，这里的Userid是后端通过拦截器进行解析Token获取的
+                     * 在进行添加到Request的Attribute属性中的
+                     */
+                    String primaryOrg = userService.getUserPrimaryOrg(userId);
+                    orgTag = primaryOrg;
+                        LogUtils.logBusiness("UPLOAD_CHUNK", userId, "成功获取用户主组织标签: fileName=%s, orgTag=%s", fileName, orgTag);
+                } catch (Exception e) {
+                        LogUtils.logBusinessError("UPLOAD_CHUNK", userId, "获取用户主组织标签失败: fileName=%s", e, fileName);
+                        monitor.end("获取主组织标签失败: " + e.getMessage());
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    errorResponse.put("code", HttpStatus.INTERNAL_SERVER_ERROR.value());
+                    errorResponse.put("message", "获取用户主组织标签失败: " + e.getMessage());
+                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+                }
             }
-        }
-        
+            /**
+             * 日志打印
+             */
             LogUtils.logFileOperation(userId, "UPLOAD_CHUNK", fileName, fileMd5, "PROCESSING");
+            /**
+             * 这个是进行分片上传的，同时同步redis和数据库和MInio的数据
+             */
             //上传分片：完成后更新Redis状态与数据库记录
             uploadService.uploadChunk(fileMd5, chunkIndex, totalSize, fileName, file, orgTag, isPublic, userId);
-            
+
+            /**
+             * 这里是找出已经上传的分片
+             */
             List<Integer> uploadedChunks = uploadService.getUploadedChunks(fileMd5, userId);
+            /**
+             * 获取总片数
+             */
             int actualTotalChunks = uploadService.getTotalChunks(fileMd5, userId);
+            /**
+             * 计算上传的进度
+             * 通过已经上传的比上总片数
+             */
             double progress = calculateProgress(uploadedChunks, actualTotalChunks);
             
             LogUtils.logBusiness("UPLOAD_CHUNK", userId, "分片上传成功: fileMd5=%s, fileName=%s, fileType=%s, chunkIndex=%d, 进度=%.2f%%", 
                     fileMd5, fileName, fileType, chunkIndex, progress);
             monitor.end("分片上传成功");
-            
+
+            /**
+             * 这里是封装响应给前端
+             */
             // 构建数据对象
             Map<String, Object> data = new HashMap<>();
             data.put("uploaded", uploadedChunks);

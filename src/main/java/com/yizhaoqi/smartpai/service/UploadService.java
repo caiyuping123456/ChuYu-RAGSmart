@@ -63,6 +63,10 @@ public class UploadService {
     public void uploadChunk(String fileMd5, int chunkIndex, long totalSize, String fileName, 
                            MultipartFile file, String orgTag, boolean isPublic, String userId) throws IOException {
         // 获取文件类型信息
+        /**
+         * 获取文件的类型
+         * 获取文件的请求头标签
+         */
         String fileType = getFileType(fileName);
         String contentType = file.getContentType();
         
@@ -71,9 +75,19 @@ public class UploadService {
         
         try {
             // 检查 file_upload 表中是否存在该 file_md5
+            /**
+             * file_upload表中存储的只是文件的信息
+             * 不是文件的本体
+             * 这里是通过file_md5来唯一标识文件的唯一性
+             */
             boolean fileExists = fileUploadRepository.findByFileMd5AndUserId(fileMd5, userId).isPresent();
             logger.debug("检查文件记录是否存在 => fileMd5: {}, fileName: {}, fileType: {}, exists: {}", fileMd5, fileName, fileType, fileExists);
-            
+
+            /**
+             * 如果file_upload中没有这个数据
+             * 标识这个文件是第一次上传
+             * 所以需要在file_upload存储这个文件的信息
+             */
             if (!fileExists) {
                 logger.info("创建新的文件记录 => fileMd5: {}, fileName: {}, fileType: {}, totalSize: {}, userId: {}, orgTag: {}, isPublic: {}", 
                           fileMd5, fileName, fileType, totalSize, userId, orgTag, isPublic);
@@ -95,11 +109,22 @@ public class UploadService {
                 }
             }
 
+            /**
+             * 这里会存储一个分片信息
+             * 标识用户上传的这个文件的这个分片是否已经存在
+             * 如果存在标识这个已经上传过了
+             * 所以就不用上传了
+             * （这里是redis的数据）
+             */
             // 检查分片是否已经上传
             boolean chunkUploaded = isChunkUploaded(fileMd5, chunkIndex, userId);
             logger.debug("检查分片是否已上传 => fileMd5: {}, fileName: {}, chunkIndex: {}, isUploaded: {}", 
                       fileMd5, fileName, chunkIndex, chunkUploaded);
-                      
+
+            /**
+             * 这里是通过文件名字查询分片表的数据
+             * 查看里面是否存在这个分片了
+             */
             // 检查数据库中是否存在分片信息
             boolean chunkInfoExists = false;
             try {
@@ -117,14 +142,22 @@ public class UploadService {
             
             String chunkMd5 = null;
             String storagePath = null;
-            
+
+            /**
+             * 这里的含义是指文件的分片还没有上传
+             * 或者已经上传但是还没有上传完成
+             */
             if (chunkUploaded) {
                 logger.warn("分片已在Redis中标记为已上传 => fileMd5: {}, fileName: {}, fileType: {}, chunkIndex: {}", fileMd5, fileName, fileType, chunkIndex);
                 
                 // 如果分片已上传但数据库中不存在记录，需要创建记录
                 if (!chunkInfoExists) {
                     logger.info("分片已上传但数据库无记录，需要补充分片信息 => fileMd5: {}, fileName: {}, chunkIndex: {}", fileMd5, fileName, chunkIndex);
-                    
+
+                    /**
+                     * 这里是不相信redis的单一数据
+                     * 通过这个分片的md5取Minio中查询有没有这个数据
+                     */
                     // 计算分片的MD5值
                     byte[] fileBytes = file.getBytes();
                     chunkMd5 = DigestUtils.md5Hex(fileBytes);
@@ -133,6 +166,15 @@ public class UploadService {
                     storagePath = "chunks/" + fileMd5 + "/" + chunkIndex;
                     
                     // 检查MinIO中是否存在该分片
+                    /**
+                     * 这里是通过检查Minio中数据，进行文件查找
+                     * 如果MInio中有这个文件分片
+                     * 标识就是数据库没有存储这个分片数据
+                     * 如果Minio中没有这个数据
+                     * 表示Redis这个数据是假的
+                     * 同时将chunkUploaded设置为false
+                     * 让这个文件分片进行上传
+                     */
                     try {
                         StatObjectResponse stat = minioClient.statObject(
                             StatObjectArgs.builder()
@@ -155,10 +197,19 @@ public class UploadService {
             }
             
             // 如果分片未上传或需要重新上传
+            /**
+             * 如果chunkUploaded表示为true
+             * 表示这个数据分片不用上传
+             * 如果chunkUploaded表示为false
+             * 表示这个数据分片需要上传
+             */
             if (!chunkUploaded) {
                 // 计算分片的 MD5 值
                 logger.debug("计算分片MD5 => fileMd5: {}, fileName: {}, chunkIndex: {}", fileMd5, fileName, chunkIndex);
                 byte[] fileBytes = file.getBytes();
+                /**
+                 * 这个是分片的Md5用于标识分片的名字
+                 */
                 chunkMd5 = DigestUtils.md5Hex(fileBytes);
                 logger.debug("分片MD5计算完成 => fileMd5: {}, fileName: {}, chunkIndex: {}, chunkMd5: {}", 
                            fileMd5, fileName, chunkIndex, chunkMd5);
@@ -172,7 +223,10 @@ public class UploadService {
                     // 存储到 MinIO
                     logger.info("开始上传分片到MinIO => fileMd5: {}, fileName: {}, fileType: {}, chunkIndex: {}, bucket: uploads, path: {}, size: {}, contentType: {}", 
                               fileMd5, fileName, fileType, chunkIndex, storagePath, file.getSize(), contentType);
-                    
+
+                    /**
+                     * 这个是将文件分片上传到Minio中
+                     */
                     PutObjectArgs putObjectArgs = PutObjectArgs.builder()
                             .bucket("uploads")
                             .object(storagePath)
@@ -208,7 +262,10 @@ public class UploadService {
                     // 这里不抛出异常，因为分片已经上传成功，即使标记失败也不影响后续操作
                 }
             }
-            
+
+            /**
+             * 这里是将分片信息存到分片表中
+             */
             // 不管分片是否已上传，都确保数据库中有分片信息
             if (!chunkInfoExists && chunkMd5 != null && storagePath != null) {
                 try {
@@ -338,6 +395,10 @@ public class UploadService {
      * @return 分片是否已上传
      */
     public boolean isChunkUploaded(String fileMd5, int chunkIndex, String userId) {
+        /**
+         * 注意，这里是查询redis中的数据
+         * 用于判断文件分片是否存在于redis中
+         */
         logger.debug("检查分片是否已上传 => fileMd5: {}, chunkIndex: {}, userId: {}", fileMd5, chunkIndex, userId);
         try {
             if (chunkIndex < 0) {
@@ -414,13 +475,22 @@ public class UploadService {
         try {
             int totalChunks = getTotalChunks(fileMd5, userId);
             logger.debug("文件总分片数 => fileMd5: {}, userId: {}, totalChunks: {}", fileMd5, userId, totalChunks);
-            
+
+            /**
+             * 如何分片为0，直接放回一个空的list
+             */
             if (totalChunks == 0) {
                 logger.warn("文件总分片数为0 => fileMd5: {}, userId: {}", fileMd5, userId);
                 return uploadedChunks;
             }
-            
+
+            /**
+             * 如果分片数量不是0
+             */
             // 优化：一次性获取所有分片状态
+            /**
+             * 通过redis中的位图进行分片是否上传判断
+             */
             String redisKey = "upload:" + userId + ":" + fileMd5;
             byte[] bitmapData = redisTemplate.execute((RedisCallback<byte[]>) connection -> {
                 return connection.get(redisKey.getBytes());
@@ -430,7 +500,10 @@ public class UploadService {
                 logger.info("Redis中无分片状态记录 => fileMd5: {}, userId: {}", fileMd5, userId);
                 return uploadedChunks;
             }
-            
+
+            /**
+             * 通过位图找出已经上传的分片
+             */
             // 解析bitmap，找出已上传的分片
             for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
                 if (isBitSet(bitmapData, chunkIndex)) {
@@ -484,13 +557,19 @@ public class UploadService {
     public int getTotalChunks(String fileMd5, String userId) {
         logger.info("计算文件总分片数 => fileMd5: {}, userId: {}", fileMd5, userId);
         try {
+            /**
+             * 根据信息进行查表获取文件表的数据
+             */
             Optional<FileUpload> fileUpload = fileUploadRepository.findByFileMd5AndUserId(fileMd5, userId);
             
             if (fileUpload.isEmpty()) {
                 logger.warn("文件记录不存在，无法计算分片数 => fileMd5: {}, userId: {}", fileMd5, userId);
                 return 0;
             }
-            
+
+            /**
+             * 再通过文件表的数据进行简单的计算，统计一下分片的数量
+             */
             long totalSize = fileUpload.get().getTotalSize();
             // 默认每个分片5MB
             int chunkSize = 5 * 1024 * 1024;

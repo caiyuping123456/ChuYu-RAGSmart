@@ -27,15 +27,32 @@ public class ChatController extends TextWebSocketHandler {
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+        /**
+         * 这里是获取客户端Socket传过来的消息体
+         * 这个SpringSocket中的TextWebSocketHandler的方法
+         */
         String userMessage = message.getPayload();
+        /**
+         * 这个是获取当前对话的Id用来当用户的Id
+         */
         String userId = session.getId(); // Use session ID as userId for simplicity
-        
+
+        /**
+         * 同样，这个是一个性能监控的方法，传入的是WebSocket——chat操作
+         * 用于计时
+         */
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("WEBSOCKET_CHAT");
         try {
+            /**
+             * 这里是打印日志
+             */
             LogUtils.logChat(userId, session.getId(), "USER_MESSAGE", userMessage.length());
             LogUtils.logBusiness("WEBSOCKET_CHAT", userId, "处理WebSocket聊天消息: messageLength=%d", userMessage.length());
-            
-        chatHandler.processMessage(userId, userMessage, session);
+
+            /**
+             * 这里是根据用户Id 用户发送的消息进行调用大模型回复
+             */
+            chatHandler.processMessage(userId, userMessage, session);
             
             LogUtils.logUserOperation(userId, "WEBSOCKET_CHAT", "message_processing", "SUCCESS");
             monitor.end("WebSocket消息处理成功");

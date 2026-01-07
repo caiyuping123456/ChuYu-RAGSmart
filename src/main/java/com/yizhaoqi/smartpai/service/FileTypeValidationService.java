@@ -90,28 +90,56 @@ public class FileTypeValidationService {
      */
     public FileTypeValidationResult validateFileType(String fileName) {
         logger.debug("开始验证文件类型: fileName={}", fileName);
-        
+
+        /**
+         * 这里是进行文件名字为空或者文件名字前后带有空格等的进行判断
+         * 如果满足就标记步支持同时返回
+         */
         if (fileName == null || fileName.trim().isEmpty()) {
             logger.warn("文件名为空或null");
             return new FileTypeValidationResult(false, "文件名不能为空", "unknown", null);
         }
 
+        /**
+         * 这个是提取文件的扩展名字
+         * 比如：txt,exe,doc等
+         * 这里是通过一个设置好的方法进行文件扩展名字比对extractFileExtension
+         */
         // 提取文件扩展名
         String extension = extractFileExtension(fileName);
+        /**
+         * 这里进一步进行了文件扩展名字判断
+         * 保证了安全性
+         */
         if (extension == null) {
             logger.warn("无法提取文件扩展名: fileName={}", fileName);
             return new FileTypeValidationResult(false, "文件必须有扩展名", "unknown", null);
         }
 
+        /**
+         * 这里调用getFileTypeDescription方法对扩展名字放回对于的类型
+         * 比如doc就放回文档
+         * txt就放回文本类型
+         */
         String fileType = getFileTypeDescription(extension);
         logger.debug("文件类型识别结果: fileName={}, extension={}, fileType={}", fileName, extension, fileType);
 
+        /**
+         * 这里是通过提前设置好的文件扩展名字进行支持的文档比对
+         * 如果在这个list中，表示这个文档是支持的类型
+         * 直接放回
+         */
         // 检查是否为支持的文档类型
         if (SUPPORTED_DOCUMENT_EXTENSIONS.contains(extension)) {
             logger.info("文件类型验证通过: fileName={}, extension={}, fileType={}", fileName, extension, fileType);
             return new FileTypeValidationResult(true, "支持的文件类型", fileType, extension);
         }
 
+        /**
+         * 这里是通过提前设置好的文件扩展名字进行不支持支持的文档比对
+         * 如果在这个list中，表示这个文档是明确不支持的类型
+         * 直接放回
+         */
         // 检查是否为明确不支持的类型
         if (UNSUPPORTED_EXTENSIONS.contains(extension)) {
             String message = String.format("不支持的文件类型：%s。系统仅支持文档类型文件的解析和向量化", fileType);
@@ -120,6 +148,11 @@ public class FileTypeValidationService {
             return new FileTypeValidationResult(false, message, fileType, extension);
         }
 
+        /**
+         * 如果上面这个都不通过
+         * 表示这个是一个没有被提前定义的文件类型
+         * 直接提示未知的文件类型就可以
+         */
         // 对于未知的文件类型，给出提示
         String message = String.format("未知的文件类型：%s。建议使用支持的文档格式（如PDF、Word、Excel、PowerPoint、文本文件等）", fileType);
         logger.warn("文件类型验证失败: fileName={}, extension={}, fileType={}, reason=unknown_type", 
@@ -134,15 +167,30 @@ public class FileTypeValidationService {
      * @return 小写的文件扩展名，如果没有扩展名则返回null
      */
     private String extractFileExtension(String fileName) {
+        /**
+         * 先保证传入的文件名字不为空
+         * 如果为空就直接放回
+         */
         if (fileName == null || fileName.trim().isEmpty()) {
             return null;
         }
 
+        /**
+         * 下面对文件名字进行分割
+         * 只要对“.”进行分割就可以
+         * 取最后就可以
+         */
         int lastDotIndex = fileName.lastIndexOf('.');
+        /**
+         * 这里是为了排除文件中没有“.”
+         */
         if (lastDotIndex == -1 || lastDotIndex == fileName.length() - 1) {
             return null;
         }
 
+        /**
+         * 提取的扩展名字全部转为小写
+         */
         return fileName.substring(lastDotIndex + 1).toLowerCase();
     }
 
@@ -153,10 +201,18 @@ public class FileTypeValidationService {
      * @return 文件类型描述
      */
     private String getFileTypeDescription(String extension) {
+        /**
+         * 进行文件扩展名字判空处理
+         * 保证安全性
+         */
         if (extension == null) {
             return "unknown";
         }
 
+        /**
+         * 排除了文件扩展名字为空的结果
+         * 直接对扩展名字进行一一比对
+         */
         // 根据文件扩展名返回文件类型
         switch (extension.toLowerCase()) {
             case "pdf":
@@ -250,11 +306,18 @@ public class FileTypeValidationService {
      * @return 支持的文件扩展名集合
      */
     public Set<String> getSupportedExtensions() {
+        /**
+         * 获取到支持的文件扩张，同时封装为HashSet集合
+         * 返回
+         */
         return new HashSet<>(SUPPORTED_DOCUMENT_EXTENSIONS);
     }
 
     /**
      * 文件类型验证结果类
+     */
+    /**
+     * 这里是封装的文件类型是否支持的内部静态类
      */
     public static class FileTypeValidationResult {
         private final boolean valid;
