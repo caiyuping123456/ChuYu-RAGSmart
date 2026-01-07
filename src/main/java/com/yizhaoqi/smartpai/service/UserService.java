@@ -284,9 +284,27 @@ public class UserService {
      * @throws CustomException 如果用户名或密码无效，则抛出异常
      */
     public String authenticateUser(String username, String password) {
+        /**
+         * 这个是数据库查表
+         * 通过一个Optional进行对象判断
+         * 如果放回的Optional<>有内容，就不会执行orElseThrow
+         * 如果没有内容就会执行orElseThrow里的方法
+         */
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new CustomException("Invalid username or password", HttpStatus.UNAUTHORIZED));
         // 比较输入的密码和数据库中存储的加密密码是否匹配
+        /**
+         * 这个密码比较是通过BCrypt 加密算法。BCrypt 有一个非常重要的特性：不可逆性和随机盐值（Salting）。
+         * 原理：
+         * matches 方法内部发生了什么？
+         * 既然密文是随机生成的，那怎么比对呢？这就是 encoder.matches() 的神奇之处：
+         *
+         * 它先从数据库获取的密文（encodedPassword）中提取出当初加密时使用的“盐值”。
+         *
+         * 它使用这个“盐值”对你刚才输入的明文（rawPassword）进行一次同样的哈希运算。
+         *
+         * 比对生成的哈希值是否与数据库中的密文一致。
+         */
         if (!PasswordUtil.matches(password, user.getPassword())) {
             // 若不匹配，抛出自定义异常，状态码为 401 Unauthorized
             throw new CustomException("Invalid username or password", HttpStatus.UNAUTHORIZED);

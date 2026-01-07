@@ -56,36 +56,73 @@ public class JwtUtils {
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
         // 生成唯一的tokenId
+        /**
+         * 通过UUID生成随机Token的ID
+         * 用于存redis
+         */
         String tokenId = generateTokenId();
+        /**
+         * 设置redis的过期时间
+         */
         long expireTime = System.currentTimeMillis() + EXPIRATION_TIME;
         
         // 创建token内容
+        /**
+         * 这个标识token中存的信息
+         * 存的信息是redis中的tokenid，用户的角色（用于前端判断）
+         * 黑油就是用户的id
+         * 用户后端快速查找
+         */
         Map<String, Object> claims = new HashMap<>();
         claims.put("tokenId", tokenId); // 添加tokenId用于Redis缓存
         claims.put("role", user.getRole().name());
         claims.put("userId", user.getId().toString()); // 添加用户ID到JWT
-        
+
+        /**
+         * 同时将用户的标签添加到token中
+         */
         // 添加组织标签信息
         if (user.getOrgTags() != null && !user.getOrgTags().isEmpty()) {
             claims.put("orgTags", user.getOrgTags());
         }
-        
+
+        /**
+         * 将主标签添加到token中
+         */
         // 添加主组织标签信息
         if (user.getPrimaryOrg() != null && !user.getPrimaryOrg().isEmpty()) {
             claims.put("primaryOrg", user.getPrimaryOrg());
         }
 
+        /**
+         * 调用Jwts构建一个token
+         * 同时返回前端
+         * 这里的本质就是通过signWith(key, SignatureAlgorithm.HS256)
+         * 将密钥结合HS256进行加密（这个会存到头部）
+         * 解密就不需要这个了
+         */
         String token = Jwts.builder()
                 .setClaims(claims)
                 .setSubject(username)
                 .setExpiration(new Date(expireTime))
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
-        
+
+        /**
+         * 将token信息存到redis中
+         * 这里的信息是tokenid，用户的id,用户的名字
+         * 同时设置过期时间
+         */
         // 缓存token信息到Redis
         tokenCacheService.cacheToken(tokenId, user.getId().toString(), username, expireTime);
-        
+
+        /**
+         * 打印日志
+         */
         logger.info("Token generated and cached for user: {}, tokenId: {}", username, tokenId);
+        /**
+         * 返回token值
+         */
         return token;
     }
 
@@ -256,6 +293,12 @@ public class JwtUtils {
      */
     private Claims extractClaimsIgnoreExpiration(String token) {
         try {
+            /**
+             * 前端返回的token的头部有一个解密的id,用于指定解密方法
+             * 这个不需要我们管
+             * JWT自己会根据这个解密方法调用对应的方法
+             * 只用传入对应的密钥，和指定需要的到的内容就可以
+             */
             return Jwts.parserBuilder()
                     .setSigningKey(getSigningKey())
                     .build()
@@ -290,13 +333,21 @@ public class JwtUtils {
      */
     public String generateRefreshToken(String username) {
         SecretKey key = getSigningKey();
-        
+        /**
+         * 先获取用户的信息
+         */
         // 获取用户信息
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
         // 生成唯一的refreshTokenId
+        /**
+         * 同样使用UUID进行随机tokenid的生成
+         */
         String refreshTokenId = generateTokenId();
+        /**
+         * 这是设置过期时间
+         */
         long expireTime = System.currentTimeMillis() + REFRESH_TOKEN_EXPIRATION_TIME;
         
         // 创建refreshToken内容（相对简单，只包含基本信息）
@@ -311,11 +362,18 @@ public class JwtUtils {
                 .setExpiration(new Date(expireTime))
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
-        
+
+        /**
+         * 将token的id,用户id添加到redis
+         * 同时设置过期时间
+         */
         // 缓存refresh token信息到Redis
         tokenCacheService.cacheRefreshToken(refreshTokenId, user.getId().toString(), null, expireTime);
         
         logger.info("Refresh token generated and cached for user: {}, refreshTokenId: {}", username, refreshTokenId);
+        /**
+         * 将生成好的信息返回
+         */
         return refreshToken;
     }
     
@@ -326,11 +384,17 @@ public class JwtUtils {
         try {
             // 首先从JWT中提取refreshTokenId
             String refreshTokenId = extractRefreshTokenIdFromToken(refreshToken);
+            /**
+             * 判断这个tokeId是否存在
+             */
             if (refreshTokenId == null) {
                 logger.warn("Refresh token does not contain refreshTokenId");
                 return false;
             }
-            
+
+            /**
+             * 使用这个tokenid判断redis中的是否过期了
+             */
             // 检查Redis缓存中的refresh token状态
             if (!tokenCacheService.isRefreshTokenValid(refreshTokenId)) {
                 logger.debug("Refresh token invalid in cache: {}", refreshTokenId);
@@ -368,6 +432,10 @@ public class JwtUtils {
      */
     public String extractRefreshTokenIdFromToken(String refreshToken) {
         try {
+            /**
+             * 这个Tokenid是放在了一个map中
+             * 所以要先得到这个map
+             */
             Claims claims = extractClaimsIgnoreExpiration(refreshToken);
             return claims != null ? claims.get("refreshTokenId", String.class) : null;
         } catch (Exception e) {

@@ -84,7 +84,7 @@ public class UserController {
             return ResponseEntity.status(e.getStatus()).body(Map.of("code", e.getStatus().value(), "message", e.getMessage()));
         } catch (Exception e) {
             /**
-             * 这个是位置异常
+             * 这个是未知异常
              */
             LogUtils.logBusinessError("USER_REGISTER", request.username(), "用户注册异常: %s", e, e.getMessage());
             monitor.end("注册异常: " + e.getMessage());
@@ -92,38 +92,96 @@ public class UserController {
         }
     }
 
+    /**
+     * 用户登录接口
+     * @param request
+     * @return
+     */
     // 用户登录接口
     // 验证用户身份并生成JWT令牌
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody UserRequest request) {
+        /**
+         * 同样，这个是由前端发送用户名字和用户密码
+         * 注意UserRequest，使用的JDK16的新特性，也就是：record
+         */
+        /**
+         * 这个使用的同样是性能监控，计算的开始时间（在构造函数中进行获取开始时间）
+         * 传入的事件是用户登录
+         */
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("USER_LOGIN");
         try {
+            /**
+             * 这里是进行用户名和密码进行判空处理
+             */
             if (request.username() == null || request.username().isEmpty() ||
                     request.password() == null || request.password().isEmpty()) {
+                /**
+                 * 如果前端传入的用户名字和密码为空的话
+                 * 直接返回400异常
+                 */
                 LogUtils.logUserOperation("anonymous", "LOGIN", "validation", "FAILED_EMPTY_PARAMS");
                 return ResponseEntity.badRequest().body(Map.of("code", 400, "message", "Username and password cannot be empty"));
             }
-            
+
+            /**
+             * 如果用户名和密码不为空的话进行查表判断
+             */
             String username = userService.authenticateUser(request.username(), request.password());
+            /**
+             * 如果username为空标识验证没有通过
+             */
             if (username == null) {
+                /**
+                 * 验证没有通过，直接返回前端告诉前端，没有通过验证
+                 */
                 LogUtils.logUserOperation(request.username(), "LOGIN", "authentication", "FAILED_INVALID_CREDENTIALS");
                 return ResponseEntity.status(401).body(Map.of("code", 401, "message", "Invalid credentials"));
             }
-            
+
+            /**
+             * 通过验证后，使用JWT进行token生成
+             */
             String token = jwtUtils.generateToken(username);
+            /**
+             * 这里使用的双令牌机制，上面这个token的有效时长是30分钟
+             * 这里这个是长期的令牌
+             * 是7天，双令牌的工作流程是这样：
+             * 双令牌的工作流程
+             * 1. 登录成功：后端同时返回 Access Token 和 Refresh Token。
+             * 2. 正常请求：前端携带 Access Token 访问 API。
+             * 3. 过期拦截：Access Token 过期，后端返回 401 错误。
+             * 4. 静默刷新：前端拦截到 401，自动调用 /refresh 接口，把这段代码生成的 Refresh Token 发给后端。
+             * 5. 后端校验：
+             *      检查 Token 是否合法。
+             *      去 Redis 查一下 refreshTokenId 是否还存在（没被拉黑）。
+             * 6. 下发新票：后端生成新的 Access Token 返回给前端，用户无感知地继续操作。
+             */
             String refreshToken = jwtUtils.generateRefreshToken(username);
             LogUtils.logUserOperation(username, "LOGIN", "token_generation", "SUCCESS");
+            /**
+             * 这个是调用成功的提示
+             */
             monitor.end("登录成功");
-            
+            /**
+             * 登录成功了，直接返回前端
+             * 同时这里会发送信息加两个token
+             */
             return ResponseEntity.ok(Map.of("code", 200, "message", "Login successful", "data", Map.of(
                 "token", token,
                 "refreshToken", refreshToken
             )));
         } catch (CustomException e) {
+            /**
+             * 密码错误，这里会返回前端
+             */
             LogUtils.logBusinessError("USER_LOGIN", request.username(), "登录失败: %s", e, e.getMessage());
             monitor.end("登录失败: " + e.getMessage());
             return ResponseEntity.status(e.getStatus()).body(Map.of("code", e.getStatus().value(), "message", e.getMessage()));
         } catch (Exception e) {
+            /**
+             * 未知错误。这里同样会返回前端
+             */
             LogUtils.logBusinessError("USER_LOGIN", request.username(), "登录异常: %s", e, e.getMessage());
             monitor.end("登录异常: " + e.getMessage());
             return ResponseEntity.status(500).body(Map.of("code", 500, "message", "Internal server error"));
