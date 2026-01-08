@@ -450,6 +450,10 @@ public class UploadService {
      * @param userId 用户ID
      */
     public void deleteFileMark(String fileMd5, String userId) {
+        /**
+         * 这个方法是删除redis中存储的所有分片信息
+         * 注意，只删除redis中的数据
+         */
         logger.debug("删除文件所有分片上传标记 => fileMd5: {}, userId: {}", fileMd5, userId);
         try {
             String redisKey = "upload:" + userId + ":" + fileMd5;
@@ -593,6 +597,9 @@ public class UploadService {
      * @param storagePath 分片的存储路径
      */
     private void saveChunkInfo(String fileMd5, int chunkIndex, String chunkMd5, String storagePath) {
+        /**
+         * 这个就是将分片信息保存到数据库表中
+         */
         logger.debug("保存分片信息到数据库 => fileMd5: {}, chunkIndex: {}, chunkMd5: {}, storagePath: {}", 
                    fileMd5, chunkIndex, chunkMd5, storagePath);
         try {
@@ -620,29 +627,51 @@ public class UploadService {
      * @return 合成文件的访问 URL
      */
     public String mergeChunks(String fileMd5, String fileName, String userId) {
+        /**
+         * 执行真正的文件分片合并
+         */
+        /**
+         * 这个是根据文件名字获取文件的类型
+         */
         String fileType = getFileType(fileName);
         logger.info("开始合并文件分片 => fileMd5: {}, fileName: {}, fileType: {}, userId: {}", fileMd5, fileName, fileType, userId);
         try {
             // 查询所有分片信息
             logger.debug("查询分片信息 => fileMd5: {}, fileName: {}", fileMd5, fileName);
-            //根据 这个 fileMd5 把所有分片信息拿出来，按 chunkIndex 的顺序放好
+
+            /**
+             * //根据 这个 fileMd5 把所有分片信息拿出来，按 chunkIndex 的顺序放好
+             */
             List<ChunkInfo> chunks = chunkInfoRepository.findByFileMd5OrderByChunkIndexAsc(fileMd5);
             logger.info("查询到分片信息 => fileMd5: {}, fileName: {}, fileType: {}, 分片数量: {}", fileMd5, fileName, fileType, chunks.size());
-            
+
+            /**
+             * 比对数据库中的分片数量和实际的分片是不是相同的
+             */
             // 检查分片数量是否与预期一致
             int expectedChunks = getTotalChunks(fileMd5, userId);
             if (chunks.size() != expectedChunks) {
+                /**
+                 * 如何数量不同
+                 * 直接放回异常
+                 */
                 logger.error("分片数量不匹配 => fileMd5: {}, fileName: {}, fileType: {}, 期望: {}, 实际: {}", 
                           fileMd5, fileName, fileType, expectedChunks, chunks.size());
                 throw new RuntimeException(String.format(
                     "分片数量不匹配，期望: %d, 实际: %d", expectedChunks, chunks.size()));
             }
+            /**
+             * 根据拍好的分片获取每个分片的访问地址
+             */
             //  用 排序的分片信息获取到排序的分片路径
             List<String> partPaths = chunks.stream()
                     .map(ChunkInfo::getStoragePath)
                     .collect(Collectors.toList());
             logger.debug("分片路径列表 => fileMd5: {}, fileName: {}, 路径数量: {}", fileMd5, fileName, partPaths.size());
 
+            /**
+             * 这个是通过Minio客户端判断对应的分片是否真实存在
+             */
             // 检查每个分片是否存在
             logger.info("开始检查每个分片是否存在 => fileMd5: {}, fileName: {}, fileType: {}", fileMd5, fileName, fileType);
             for (int i = 0; i < partPaths.size(); i++) {
@@ -662,7 +691,10 @@ public class UploadService {
                 }
             }
             logger.info("分片检查完成，所有分片都存在 => fileMd5: {}, fileName: {}, fileType: {}", fileMd5, fileName, fileType);
-            
+            /**
+             * 表示所有的分片都已经存在且上传了
+             * 下面开始进行文件分片合并
+             */
             String mergedPath = "merged/" + fileName;
             logger.info("开始合并分片 => fileMd5: {}, fileName: {}, fileType: {}, 合并后路径: {}", fileMd5, fileName, fileType, mergedPath);
             
@@ -670,13 +702,26 @@ public class UploadService {
                 // 合并分片
                     //排序的分片存储路径保证顺序
                     // 根据分片的服务器存储路径获取到sources源文件
+                /**
+                 * 这个是根据地址取Minio里找源文档
+                 * 同时封装为一个List集合
+                 */
                 List<ComposeSource> sources = partPaths.stream()
                         .map(path -> ComposeSource.builder().bucket("uploads").object(path).build())
                         .collect(Collectors.toList());
-                
+
+                /**
+                 * 打印日志
+                 */
                 logger.debug("构建合并请求 => fileMd5: {}, fileName: {}, targetPath: {}, sourcePaths: {}", 
                           fileMd5, fileName, mergedPath, partPaths);
 
+                /**
+                 * 使用Minio的客户端进行文件分片合并
+                 * 注意，这个是Minio提供的
+                 * 只要将分片包装为List集合传入就可以
+                 * 哈哈哈哈
+                 */
                 minioClient.composeObject(
                         ComposeObjectArgs.builder()
                                 .bucket("uploads")
@@ -685,7 +730,11 @@ public class UploadService {
                                 .build()
                 );
                 logger.info("分片合并成功 => fileMd5: {}, fileName: {}, fileType: {}, mergedPath: {}", fileMd5, fileName, fileType, mergedPath);
-                
+
+                /**
+                 * 为了保险
+                 * 再一次去Minio里查这个合并的文档
+                 */
                 // 检查合并后的文件
                 StatObjectResponse stat = minioClient.statObject(
                     StatObjectArgs.builder()
@@ -695,6 +744,12 @@ public class UploadService {
                 );
                 logger.info("合并文件信息 => fileMd5: {}, fileName: {}, fileType: {}, path: {}, size: {}", fileMd5, fileName, fileType, mergedPath, stat.size());
 
+                /**
+                 * 合并好了后
+                 * 就将文件的分片文档进行删除
+                 * 这里只会删除Redis中的分片信息
+                 * 和Minio中的分片文档
+                 */
                 // 清理分片文件
                 logger.info("开始清理分片文件 => fileMd5: {}, fileName: {}, 分片数量: {}", fileMd5, fileName, partPaths.size());
                 for (String path : partPaths) {
@@ -713,11 +768,22 @@ public class UploadService {
                 }
                 logger.info("分片文件清理完成 => fileMd5: {}, fileName: {}, fileType: {}", fileMd5, fileName, fileType);
 
+
+                /**
+                 * 这里是进行Redis的分片信息删除
+                 */
                 // 删除 Redis 中的分片状态记录
                 logger.info("删除Redis中的分片状态记录 => fileMd5: {}, fileName: {}, userId: {}", fileMd5, fileName, userId);
                 deleteFileMark(fileMd5, userId);
                 logger.info("分片状态记录已删除 => fileMd5: {}, fileName: {}, userId: {}", fileMd5, fileName, userId);
 
+
+                /**
+                 * 将数据库中的文档状态修改为已经完成
+                 * 刚开始是修改为0（也就是未完成）、
+                 * 先查数据库
+                 * 再进行状态修改
+                 */
                 // 更新文件状态
                 logger.info("更新文件状态为已完成 => fileMd5: {}, fileName: {}, fileType: {}, userId: {}", fileMd5, fileName, fileType, userId);
                 FileUpload fileUpload = fileUploadRepository.findByFileMd5AndUserId(fileMd5, userId)
@@ -727,9 +793,19 @@ public class UploadService {
                         });
                 fileUpload.setStatus(1); // 已完成
                 fileUpload.setMergedAt(LocalDateTime.now());
+                /**
+                 * 将修改好的文件信息进行保存
+                 *
+                 */
                 fileUploadRepository.save(fileUpload);
                 logger.info("文件状态已更新为已完成 => fileMd5: {}, fileName: {}, fileType: {}", fileMd5, fileName, fileType);
 
+                /**
+                 * 同时将合并好的文档进行Url暴露
+                 * 供前端使用
+                 * 这里是使用Minio已经包装好的方法
+                 * 同时url设置未1小时
+                 */
                 // 生成预签名 URL（有效期为 1 小时）
                 logger.info("开始生成预签名URL => fileMd5: {}, fileName: {}, path: {}", fileMd5, fileName, mergedPath);
                 String presignedUrl = minioClient.getPresignedObjectUrl(
@@ -740,6 +816,9 @@ public class UploadService {
                                 .expiry(1, TimeUnit.HOURS) // 设置有效期为 1 小时
                                 .build()
                 );
+                /**
+                 * 日志打印
+                 */
                 logger.info("预签名URL已生成 => fileMd5: {}, fileName: {}, fileType: {}, URL: {}", fileMd5, fileName, fileType, presignedUrl);
                 
                 return presignedUrl;
@@ -749,6 +828,11 @@ public class UploadService {
                 throw new RuntimeException("合并文件失败: " + e.getMessage(), e);
             }
         } catch (Exception e) {
+            /**
+             * 这里是获取文件合并过程中的异常
+             * 包括程序自己抛出的异常
+             * 同时抛出给上一级
+             */
             logger.error("文件合并过程中发生错误 => fileMd5: {}, fileName: {}, fileType: {}, 错误类型: {}, 错误信息: {}", 
                       fileMd5, fileName, fileType, e.getClass().getName(), e.getMessage(), e);
             throw new RuntimeException("文件合并失败: " + e.getMessage(), e);

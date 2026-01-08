@@ -228,13 +228,23 @@ public class UploadController {
      */
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getUploadStatus(@RequestParam("file_md5") String fileMd5, @RequestAttribute("userId") String userId) {
+        /**
+         * 这个同样是获取性能的方法
+         * 传入的是对应的方法操作
+         */
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("GET_UPLOAD_STATUS");
         try {
             // 获取文件信息
             String fileName = "unknown";
             String fileType = "unknown";
             try {
+                /**
+                 * 这个方法是查询文件上传表中是否有这个文件
+                 */
                 Optional<FileUpload> fileUpload = fileUploadRepository.findByFileMd5(fileMd5);
+                /**
+                 * 如果有这个文件直接获取到这个文件的文件名字和文件类型
+                 */
                 if (fileUpload.isPresent()) {
                     fileName = fileUpload.get().getFileName();
                     fileType = getFileType(fileName);
@@ -243,17 +253,38 @@ public class UploadController {
                 // 获取文件信息失败不影响状态查询，继续处理
                 LogUtils.logBusiness("GET_UPLOAD_STATUS", "system", "获取文件信息失败，使用默认值: fileMd5=%s, 错误=%s", fileMd5, e.getMessage());
             }
-            
+            /**
+             * 日志记录
+             */
             LogUtils.logBusiness("GET_UPLOAD_STATUS", "system", "获取文件上传状态: fileMd5=%s, fileName=%s, fileType=%s", fileMd5, fileName, fileType);
-            
+
+            /**
+             * 这个是获取到文件的分片信息
+             * 注意
+             * 这个是通过redis的位图进行获取已经上传完成的分片信息
+             */
             List<Integer> uploadedChunks = uploadService.getUploadedChunks(fileMd5, userId);
+            /**
+             * 这个是获取到文件的总的分片
+             * 包括上传完成和没有上传完成的
+             */
             int totalChunks = uploadService.getTotalChunks(fileMd5, userId);
+            /**
+             * 计算完成比例
+             */
             double progress = calculateProgress(uploadedChunks, totalChunks);
-            
+
+            /**
+             * 记录日志
+             * 同时统计性能时间
+             */
             LogUtils.logBusiness("GET_UPLOAD_STATUS", "system", "文件上传状态: fileMd5=%s, fileName=%s, fileType=%s, 已上传=%d/%d, 进度=%.2f%%", 
                     fileMd5, fileName, fileType, uploadedChunks.size(), totalChunks, progress);
             monitor.end("获取上传状态成功");
-            
+
+            /**
+             * 构建信息发送给前端
+             */
             // 构建数据对象
             Map<String, Object> data = new HashMap<>();
             data.put("uploaded", uploadedChunks);
@@ -269,6 +300,9 @@ public class UploadController {
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            /**
+             * 出现的异常也发送给前端
+             */
             LogUtils.logBusinessError("GET_UPLOAD_STATUS", "system", "获取文件上传状态失败: fileMd5=%s", e, fileMd5);
             monitor.end("获取上传状态失败: " + e.getMessage());
             Map<String, Object> errorResponse = new HashMap<>();
@@ -290,13 +324,34 @@ public class UploadController {
     public ResponseEntity<Map<String, Object>> mergeFile(
             @RequestBody MergeRequest request,
             @RequestAttribute("userId") String userId) {
-        
+        /**
+         * 这个方法是通过验证已经上传完成的文件分片和总分片的比较
+         * 来判断是不是需要进行文件分片合并
+         * 如何是相等的
+         * 就会调用server的方法将文件分片进行合并
+         * 同时提供一个url供前端进行访问并通过Kafka进行消息发送
+         * 如果不相同就不发送消息
+         */
+        /**
+         * 同样，这个也是一个性能的监控函数
+         *
+         */
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("MERGE_FILE");
         try {
+            /**
+             * 这个是通过前端放回的文件名字获取文件的类型
+             */
             String fileType = getFileType(request.fileName());
+            /**
+             * 日志记录
+             */
             LogUtils.logBusiness("MERGE_FILE", userId, "接收到合并文件请求: fileMd5=%s, fileName=%s, fileType=%s", 
                     request.fileMd5(), request.fileName(), fileType);
-            
+            /**
+             * 这个是先查询数据库
+             * 看看数据库中有没有这个文件信息
+             * 如果有标识文件可以进行下一步操作
+             */
             // 检查文件完整性和权限
             LogUtils.logBusiness("MERGE_FILE", userId, "检查文件记录和权限: fileMd5=%s, fileName=%s", request.fileMd5(), request.fileName());
             FileUpload fileUpload = fileUploadRepository.findByFileMd5AndUserId(request.fileMd5(), userId)
@@ -304,9 +359,19 @@ public class UploadController {
                         LogUtils.logUserOperation(userId, "MERGE_FILE", request.fileMd5(), "FAILED_FILE_NOT_FOUND");
                         return new RuntimeException("文件记录不存在");
                     });
-                    
+
+            /**
+             * 这个是权限判断
+             * 通过前端传来的用户Id和数据库中的用户Id进行比较
+             * 如果相同才能进行文件合并操作
+             */
             // 确保用户有权限操作该文件
             if (!fileUpload.getUserId().equals(userId)) {
+                /**
+                 * 如何两个UserId不同，
+                 * 标识不能进行文件合并
+                 * 直接放回前端同时结束代码
+                 */
                 LogUtils.logUserOperation(userId, "MERGE_FILE", request.fileMd5(), "FAILED_PERMISSION_DENIED");
                 LogUtils.logBusiness("MERGE_FILE", userId, "权限验证失败: 尝试合并不属于自己的文件, fileMd5=%s, fileName=%s, 实际所有者=%s", 
                         request.fileMd5(), request.fileName(), fileUpload.getUserId());
@@ -316,15 +381,28 @@ public class UploadController {
                 errorResponse.put("message", "没有权限操作此文件");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
             }
-            
+
+            /**
+             * 这个是记录日志
+             */
             LogUtils.logBusiness("MERGE_FILE", userId, "权限验证通过，开始合并文件: fileMd5=%s, fileName=%s, fileType=%s", request.fileMd5(), request.fileName(), fileType);
-            
+
+            /**
+             * 这个是通过redis的位图同分片总数量
+             * 进行比较
+             * 看看所有的分片是否已经上传了
+             */
             // 检查分片是否全部上传完成 - 依旧Redis读取位图对比，这个getUploadedChunks方法很重要
             List<Integer> uploadedChunks = uploadService.getUploadedChunks(request.fileMd5(), userId);
             int totalChunks = uploadService.getTotalChunks(request.fileMd5(), userId);
             LogUtils.logBusiness("MERGE_FILE", userId, "分片上传状态: fileMd5=%s, fileName=%s, 已上传=%d/%d", 
                     request.fileMd5(), request.fileName(), uploadedChunks.size(), totalChunks);
-            
+
+            /**
+             * 如果没有全部上传
+             * 同样也是抛出异常
+             * 返回前端
+             */
             if (uploadedChunks.size() < totalChunks) {
                 LogUtils.logUserOperation(userId, "MERGE_FILE", request.fileMd5(), "FAILED_INCOMPLETE_CHUNKS");
                 monitor.end("合并失败：分片未全部上传");
@@ -334,15 +412,32 @@ public class UploadController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
             }
 
+            /**
+             * 进行文件分片文件的合并
+             * 同时放回一个url供前端进行访问
+             */
             // 合并文件
             LogUtils.logBusiness("MERGE_FILE", userId, "开始合并文件分片: fileMd5=%s, fileName=%s, fileType=%s, 分片数量=%d", request.fileMd5(), request.fileName(), fileType, totalChunks);
+            /**
+             * 调用service进行文件合并
+             */
             String objectUrl = uploadService.mergeChunks(request.fileMd5(), request.fileName(), userId);
             LogUtils.logFileOperation(userId, "MERGE", request.fileName(), request.fileMd5(), "SUCCESS");
 
+            /**
+             * 这个是发送到kafka
+             * 如果文件合并后，程序直接在当前接口里去处理文件（比如压缩 1GB 的文件），前端会一直转圈等待直到超时。 通过 Kafka，实现了解耦和异步处理：
+             * 前端无需等待：合并一完成，消息发给 Kafka，接口直接返回“成功”，用户体验极佳。
+             * 削峰填谷：如果瞬间有 1000 人合并文件，后端服务器不会崩溃，任务会堆积在 Kafka 中，由后端的消费服务慢慢消化。
+             */
             // 发送任务到 Kafka，包含完整的权限信息
             LogUtils.logBusiness("MERGE_FILE", userId, "创建文件处理任务: fileMd5=%s, fileName=%s, fileType=%s, orgTag=%s, isPublic=%s", 
                     request.fileMd5(), request.fileName(), fileType, fileUpload.getOrgTag(), fileUpload.isPublic());
-            
+
+            /**
+             * 构建一个任务
+             * 用于发送到kafka
+             */
             FileProcessingTask task = new FileProcessingTask(
                     request.fileMd5(),
                     objectUrl,
@@ -351,15 +446,27 @@ public class UploadController {
                     fileUpload.getOrgTag(),
                     fileUpload.isPublic()
             );
-            
+
+            /**
+             * 日志记录
+             */
             LogUtils.logBusiness("MERGE_FILE", userId, "发送文件处理任务到Kafka(事务): topic=%s, fileMd5=%s, fileName=%s", 
                     kafkaConfig.getFileProcessingTopic(), request.fileMd5(), request.fileName());
+
+            /**
+             * 通过kafka发送一个合并成功的消息给后端的监听
+             * 这个是存储到Kfaka中的主题中
+             * 持久化到磁盘中
+             */
             kafkaTemplate.executeInTransaction(kt -> {
                 kt.send(kafkaConfig.getFileProcessingTopic(), task);
                 return true;
             });
             LogUtils.logBusiness("MERGE_FILE", userId, "文件处理任务已发送: fileMd5=%s, fileName=%s, fileType=%s", request.fileMd5(), request.fileName(), fileType);
 
+            /**
+             * 这里是封装响应
+             */
             // 构建数据对象
             Map<String, Object> data = new HashMap<>();
             data.put("object_url", objectUrl);
@@ -393,6 +500,10 @@ public class UploadController {
      * @return 返回上传进度的百分比
      */
     private double calculateProgress(List<Integer> uploadedChunks, int totalChunks) {
+        /**
+         * 这个就是计算文件的上传进度
+         * 就是简单的计算
+         */
         if (totalChunks == 0) {
             LogUtils.logBusiness("CALCULATE_PROGRESS", "system", "计算上传进度时总分片数为0");
             return 0.0;
@@ -415,10 +526,17 @@ public class UploadController {
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("GET_SUPPORTED_TYPES");
         try {
             LogUtils.logBusiness("GET_SUPPORTED_TYPES", "system", "获取支持的文件类型列表");
-            
+
+            /**
+             * 这个是获取可以上传的文件类型
+             */
             Set<String> supportedTypes = fileTypeValidationService.getSupportedFileTypes();
             Set<String> supportedExtensions = fileTypeValidationService.getSupportedExtensions();
-            
+
+            /**
+             * 将获取到的文件类型发送给前端
+             * 这里做了统一包装
+             */
             // 构建数据对象
             Map<String, Object> data = new HashMap<>();
             data.put("supportedTypes", supportedTypes);
