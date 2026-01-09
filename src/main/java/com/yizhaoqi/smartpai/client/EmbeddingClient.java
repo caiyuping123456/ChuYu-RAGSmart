@@ -45,16 +45,35 @@ public class EmbeddingClient {
      */
     public List<float[]> embed(List<String> texts) {
         try {
+            /**
+             * 日志打印
+             */
             logger.info("开始生成向量，文本数量: {}", texts.size());
-            
+
+            /**
+             * 初始化向量list
+             * 每个段落是一个向量化
+             * 所以list的长度就是texts的长度
+             */
             List<float[]> all = new ArrayList<>(texts.size());
+
+            /**
+             * 这个代码就是分批次请求大模型进行向量化的循环
+             */
             for (int start = 0; start < texts.size(); start += batchSize) {
                 int end = Math.min(start + batchSize, texts.size());
                 List<String> sub = texts.subList(start, end);
                 logger.debug("调用向量 API, 批次: {}-{} (size={})", start, end - 1, sub.size());
+                /**
+                 * 这个是一次调用大模型进行向量化的方法
+                 */
                 String response = callApiOnce(sub);
                 all.addAll(parseVectors(response));
             }
+            /**
+             * 全部弄完了后
+             * 直接打印日志同时进行输出结果
+             */
             logger.info("成功生成向量，总数量: {}", all.size());
             return all;
         } catch (Exception e) {
@@ -63,23 +82,38 @@ public class EmbeddingClient {
         }
     }
 
+    /**
+     * 封装请求，进行请求大模型
+     * @param batch
+     * @return
+     */
     private String callApiOnce(List<String> batch) {
         Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", modelId);
-        requestBody.put("input", batch);
-        requestBody.put("dimension", dimension);  // 直接在根级别设置dimension
-        requestBody.put("encoding_format", "float");  // 添加编码格式
+        requestBody.put("model", modelId); // 告诉对方：我要用哪款 AI 模型
+        requestBody.put("input", batch); // 告诉对方：这是我要转换的几段文本
+        requestBody.put("dimension", dimension);  // 直接在根级别设置dimension// 告诉对方：请给我返回 1024 维（或 2048 维）
+        requestBody.put("encoding_format", "float");  // 添加编码格式// 告诉对方：数字格式请用标准浮点数
 
         return webClient.post()
-                .uri("/embeddings")
-                .bodyValue(requestBody)
-                .retrieve()
-                .bodyToMono(String.class)
+                .uri("/embeddings")// 目标地址：向量接口的门牌号
+                .bodyValue(requestBody)// 把刚才准备好的公函放进邮件包
+                .retrieve()// 开始接收对方的回应
+                .bodyToMono(String.class)// 把对方返回的数据包解析成一串 JSON 字符串
+                /**
+                 * 这个是重试机制
+                 */
                 .retryWhen(Retry.fixedDelay(3, Duration.ofSeconds(1))
                         .filter(e -> e instanceof WebClientResponseException))
                 .block(Duration.ofSeconds(30));
     }
 
+    /**
+     * 这个是进行json解析
+     *
+     * @param response
+     * @return
+     * @throws Exception
+     */
     private List<float[]> parseVectors(String response) throws Exception {
         JsonNode jsonNode = objectMapper.readTree(response);
         JsonNode data = jsonNode.get("data");  // 兼容模式下使用data字段

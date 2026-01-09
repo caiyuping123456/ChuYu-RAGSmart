@@ -37,6 +37,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         try {
+            /**
+             * 这个是通过获取前端传来的Token并进行解析
+             */
             // 从请求头中提取 JWT Token
             String token = extractToken(request);
             if (token != null) {
@@ -71,10 +74,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 
                 // 设置用户认证信息
                 if (username != null && !username.isEmpty()) {
+                    /**
+                     * 加载用户的信息
+                     */
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                    /**
+                     *  为用户设置通行证
+                     */
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities());
+                    /**
+                     * 加载用户的浏览器
+                     */
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    /**
+                     * 放到Spring中
+                     */
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
             }
@@ -89,6 +104,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * 从请求头中提取 JWT Token。
      */
     private String extractToken(HttpServletRequest request) {
+        /**
+         * 这个是从请求中获取到token
+         */
         String bearerToken = request.getHeader("Authorization");
         if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7); // 去掉 "Bearer " 前缀

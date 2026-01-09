@@ -167,6 +167,9 @@ public class JwtUtils {
      */
     public String extractUsernameFromToken(String token) {
         try {
+            /**
+             * 这里是存什么就取什么
+             */
             Claims claims = extractClaimsIgnoreExpiration(token);
             return claims != null ? claims.getSubject() : null;
         } catch (Exception e) {

@@ -1,6 +1,7 @@
 package com.yizhaoqi.smartpai.service;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import com.yizhaoqi.smartpai.client.EmbeddingClient;
 import com.yizhaoqi.smartpai.entity.EsDocument;
@@ -84,38 +85,45 @@ public class HybridSearchService {
             logger.debug("向量生成成功，开始执行混合搜索 KNN");
 
             SearchResponse<EsDocument> response = esClient.search(s -> {
-                        s.index("knowledge_base");
-                        // KNN 召回
-                        int recallK = topK * 30; // KNN 召回窗口
-                        s.knn(kn -> kn
-                                .field("vector")
-                                .queryVector(queryVector)
-                                .k(recallK)
-                                .numCandidates(recallK)
-                        );
-                        // 必须命中关键词 + 权限过滤
-                        s.query(q -> q.bool(b -> b
-                                .must(mst -> mst.match(m -> m.field("textContent").query(query)))
-                                .filter(f -> f.bool(bf -> bf
-                                        // 条件1: 用户可访问自己的文档
-                                        .should(s1 -> s1.term(t -> t.field("userId").value(userDbId)))
-                                        // 条件2: 公开文档
-                                        .should(s2 -> s2.term(t -> t.field("public").value(true)))
-                                        // 条件3: 组织标签
-                                        .should(s3 -> {
-                                            if (userEffectiveTags.isEmpty()) {
-                                                return s3.matchNone(mn -> mn);
-                                            } else if (userEffectiveTags.size() == 1) {
-                                                return s3.term(t -> t.field("orgTag").value(userEffectiveTags.get(0)));
-                                            } else {
-                                                return s3.bool(inner -> {
-                                                    userEffectiveTags.forEach(tag -> inner.should(sh2 -> sh2.term(t -> t.field("orgTag").value(tag))));
-                                                    return inner;
-                                                });
-                                            }
-                                        })
-                                ))
-                        ));
+                s.index("knowledge_base");
+
+                // 1. KNN 向量召回
+                int recallK = topK * 30;
+                s.knn(kn -> kn
+                        .field("vector")
+                        .queryVector(queryVector)
+                        .k(recallK)
+                        .numCandidates(recallK)
+                );
+
+                // 2. 混合查询
+                s.query(q -> q.bool(b -> b
+                        // A. 必须匹配关键词
+                        .must(mst -> mst.match(m -> m.field("textContent").query(query)))
+
+                        // B. 权限过滤块
+                        .filter(f -> f.bool(bf -> bf
+                                // 【关键修复】确保三个 should 条件至少中一个
+                                .minimumShouldMatch("1")
+
+                                // 条件1: 匹配本人 (显式转 String)
+                                .should(s1 -> s1.term(t -> t.field("userId").value(String.valueOf(userDbId))))
+
+                                // 条件2: 公开文档 (已修正字段名)
+                                .should(s2 -> s2.term(t -> t.field("isPublic").value(true)))
+
+                                // 条件3: 组织标签 (使用 terms 优化，防止标签为空时的报错)
+                                .should(s3 -> {
+                                    if (userEffectiveTags == null || userEffectiveTags.isEmpty()) {
+                                        return s3.term(t -> t.field("orgTag").value("_NONE_"));
+                                    }
+                                    // 使用 terms 一次性匹配多个标签，比 forEach should 更稳健
+                                    return s3.terms(t -> t.field("orgTag")
+                                            .terms(v -> v.value(userEffectiveTags.stream()
+                                                    .map(FieldValue::of).toList())));
+                                })
+                        ))
+                ));
 
                         // 第二阶段 BM25 rescore
                         s.rescore(r -> r

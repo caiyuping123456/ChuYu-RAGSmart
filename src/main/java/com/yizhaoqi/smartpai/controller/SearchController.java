@@ -47,11 +47,25 @@ public class SearchController {
     public Map<String, Object> hybridSearch(@RequestParam String query,
                                             @RequestParam(defaultValue = "10") int topK,
                                             @RequestAttribute(value = "userId", required = false) String userId) {
+        /**
+         * 下面来说明一下用户检索知识库如何实现
+         */
+        /**
+         * 老规矩
+         * 这个是简单的性能监控平台
+         * 传入的就是文档检索
+         */
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("HYBRID_SEARCH");
         try {
+            /**
+             * 日志打印
+             */
             LogUtils.logBusiness("HYBRID_SEARCH", userId != null ? userId : "anonymous", 
                     "开始混合检索: query=%s, topK=%d", query, topK);
-            
+
+            /**
+             * 封装以下查询的结果（文档）
+             */
             List<SearchResult> results;
             if (userId != null) {
                 // 如果有用户ID，使用带权限的搜索

@@ -110,7 +110,7 @@ embedding:
     key: sk-eejpytshnxihqbeedqsgfuixodazjxjxjetbounsqbzzygtr   # 填入通义千问API key
     model: BAAI/bge-m3
     batch-size: 10  # 单次请求最大行数（DashScope限制为10）
-    dimension: 2048  # 指定向量维度
+    dimension: 1024  # 指定向量维度
 
 ai:
   prompt:

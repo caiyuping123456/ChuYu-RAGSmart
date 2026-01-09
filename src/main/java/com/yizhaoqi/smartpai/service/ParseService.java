@@ -58,18 +58,31 @@ public class ParseService {
      */
     public void parseAndSave(String fileMd5, InputStream fileStream,
             String userId, String orgTag, boolean isPublic) throws IOException, TikaException {
+        /**
+         * 日志打印
+         */
         logger.info("开始流式解析文件，fileMd5: {}, userId: {}, orgTag: {}, isPublic: {}",
                 fileMd5, userId, orgTag, isPublic);
-        
+
+        /**
+         * 先检查一下服务器的内存够不够。如果内存快满了，可能直接拒绝任务，防止把服务器搞挂。
+         */
         checkMemoryThreshold();
+
 
         try (BufferedInputStream bufferedStream = new BufferedInputStream(fileStream, bufferSize)) {
             // 创建一个流式处理器，它会在内部处理父块的切分和子块的保存
+            /**
+             * 这个会自动进行处理
+             */
             StreamingContentHandler handler = new StreamingContentHandler(fileMd5, userId, orgTag, isPublic);
             Metadata metadata = new Metadata();
             ParseContext context = new ParseContext();
             AutoDetectParser parser = new AutoDetectParser();
 
+            /**
+             * 然后进行函数回调
+             */
             // Tika的parse方法会驱动整个流式处理过程
             // 当handler的characters方法接收到足够数据时，会触发分块、切片和保存
             parser.parse(bufferedStream, handler, metadata, context);
@@ -156,9 +169,16 @@ public class ParseService {
             logger.debug("处理父文本块，大小: {} bytes", parentChunkText.length());
 
             // 1. 将父块分割成更小的、有语义的子切片
+            /**
+             * 这个就是将大文件进行分割为小文件
+             * chunkSize这个是通过配置文件指定的
+             */
             List<String> childChunks = ParseService.this.splitTextIntoChunksWithSemantics(parentChunkText, chunkSize);
 
             // 2. 将子切片批量保存到数据库
+            /**
+             * 将分割好的文件存取数据库
+             */
             this.savedChunkCount = ParseService.this.saveChildChunks(fileMd5, childChunks, userId, orgTag, isPublic, this.savedChunkCount);
 
             // 3. 清空缓冲区，为下一个父块做准备
@@ -179,6 +199,10 @@ public class ParseService {
      */
     private int saveChildChunks(String fileMd5, List<String> chunks,
             String userId, String orgTag, boolean isPublic, int startingChunkId) {
+        /**
+         * 把子分片存入数据库
+         * 同时按分片好进行存储
+         */
         int currentChunkId = startingChunkId;
         for (String chunk : chunks) {
             currentChunkId++;
@@ -196,9 +220,22 @@ public class ParseService {
     }
 
     /**
+     * 其实本质就是
+     * 向进行段落划分
+     * 如果段落太长
+     * 进行句子划分
+     * 如何举止太长
+     * 进行词语划分
+     *
+     */
+    /**
      * 智能文本分割，保持语义完整性
      */
     private List<String> splitTextIntoChunksWithSemantics(String text, int chunkSize) {
+        /**
+         * 这个就是一个按段落进行分割的方法
+         * 如果分割的段落还市大于指定chaunk，再进行分割
+         */
         List<String> chunks = new ArrayList<>();
 
         // 按段落分割
@@ -206,6 +243,9 @@ public class ParseService {
 
         StringBuilder currentChunk = new StringBuilder();
 
+        /**
+         * 这个就是对段落进行分割（细化）
+         */
         for (String paragraph : paragraphs) {
             // 如果单个段落超过chunk大小，需要进一步分割
             if (paragraph.length() > chunkSize) {
@@ -237,6 +277,9 @@ public class ParseService {
             }
         }
 
+        /**
+         * 将最后那盒袋子添加到list中
+         */
         // 添加最后一个chunk
         if (currentChunk.length() > 0) {
             chunks.add(currentChunk.toString().trim());
@@ -281,6 +324,12 @@ public class ParseService {
         return chunks;
     }
 
+
+    /**
+     * 这里还提供了
+     * 中文的按语义进行分割
+     * 英文按字符进行划分
+     */
     /**
      * 使用HanLP智能分割超长句子，中文按语义切割
      */

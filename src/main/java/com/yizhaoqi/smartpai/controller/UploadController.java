@@ -456,7 +456,10 @@ public class UploadController {
             /**
              * 通过kafka发送一个合并成功的消息给后端的监听
              * 这个是存储到Kfaka中的主题中
-             * 持久化到磁盘中
+             * 接下来;FileProcessingConsumer
+             * 就会对文件进行向量化，同时存入Es中
+             * FileProcessingConsumer这个是一个消费者，他会进行监听
+             * 当主题有内容时就会进行消费
              */
             kafkaTemplate.executeInTransaction(kt -> {
                 kt.send(kafkaConfig.getFileProcessingTopic(), task);
