@@ -74,10 +74,19 @@ public class ElasticsearchService {
      */
     public void deleteByFileMd5(String fileMd5) {
         try {
+            /**
+             * 这个是直接调用ES的APi进行删除
+             */
+            /**
+             * 构造删除请求
+             */
             DeleteByQueryRequest request = DeleteByQueryRequest.of(d -> d
                     .index("knowledge_base")
                     .query(q -> q.term(t -> t.field("fileMd5").value(fileMd5)))
             );
+            /**
+             * 执行删除
+             */
             esClient.deleteByQuery(request);
         } catch (Exception e) {
             throw new RuntimeException("删除文档失败", e);

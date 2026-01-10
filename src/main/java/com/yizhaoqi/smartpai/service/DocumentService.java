@@ -62,25 +62,48 @@ public class DocumentService {
      */
     @Transactional
     public void deleteDocument(String fileMd5, String userId) {
+        /**
+         * 日志打印
+         */
         logger.info("开始删除文档: {}", fileMd5);
-        
+
+        /**
+         * 这个是获取文件的数据库信息
+         * 是整个文件
+         */
         try {
             // 获取文件信息以获取文件名
             FileUpload fileUpload = fileUploadRepository.findByFileMd5AndUserId(fileMd5, userId)
                     .orElseThrow(() -> new RuntimeException("文件不存在"));
-            
+
+            /**
+             * 第一步是进行ES的数据删除
+             * 删除ES中的向量数据
+             */
             // 1. 删除Elasticsearch中的数据
             try {
+                /**
+                 * 调用ES客户端进行删除
+                 */
                 elasticsearchService.deleteByFileMd5(fileMd5);
                 logger.info("成功从Elasticsearch删除文档: {}", fileMd5);
             } catch (Exception e) {
                 logger.error("从Elasticsearch删除文档时出错: {}", fileMd5, e);
                 // 继续删除其他数据
             }
-            
+
+            /**
+             * 第二部是删除Minio中的数据
+             * 这个是通过数据库中的Miniio路径进行Minio文件路径构造
+             * 取Minio进行进行文件删除
+             * 同样是调用API
+             */
             // 2. 删除MinIO中的文件
             try {
                 String objectName = "merged/" + fileUpload.getFileName();
+                /**
+                 * 直接调用的是Minio的客户端
+                 */
                 minioClient.removeObject(
                         RemoveObjectArgs.builder()
                                 .bucket("uploads")
@@ -92,7 +115,11 @@ public class DocumentService {
                 logger.error("从MinIO删除文件时出错: {}", fileMd5, e);
                 // 继续删除其他数据
             }
-            
+
+            /**
+             * 写一部就是删除数据库中文件的分片信息了
+             * 同时也是直接调用API
+             */
             // 3. 删除DocumentVector记录
             try {
                 documentVectorRepository.deleteByFileMd5(fileMd5);
@@ -101,7 +128,11 @@ public class DocumentService {
                 logger.error("删除文档向量记录时出错: {}", fileMd5, e);
                 // 继续删除其他数据
             }
-            
+
+            /**
+             * 最后删除数据中这个额文件信息
+             * 这个是总的信息
+             */
             // 4. 删除FileUpload记录
             fileUploadRepository.deleteByFileMd5(fileMd5);
             logger.info("成功删除文件上传记录: {}", fileMd5);
@@ -178,16 +209,29 @@ public class DocumentService {
      * @return 预签名下载URL
      */
     public String generateDownloadUrl(String fileMd5) {
+        /**
+         * 这个是生成minio中的下载地址
+         */
         logger.info("生成文件下载链接: fileMd5={}", fileMd5);
         
         try {
             // 从数据库获取文件信息
+            /**
+             * 先通过数据库获取文件名字
+             */
             FileUpload fileUpload = fileUploadRepository.findByFileMd5(fileMd5)
                     .orElseThrow(() -> new RuntimeException("文件不存在: " + fileMd5));
-            
+
+            /**
+             * 拼接到miniio中的名字
+             * 取minio中查找
+             */
             // MinIO中的对象路径格式: merged/文件名
             String objectName = "merged/" + fileUpload.getFileName();
-            
+
+            /**
+             * 生成一个URL供前端下载
+             */
             // 生成预签名URL，有效期1小时
             String presignedUrl = minioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
@@ -200,6 +244,10 @@ public class DocumentService {
             
             logger.info("成功生成文件下载链接: fileMd5={}, fileName={}, objectName={}", 
                     fileMd5, fileUpload.getFileName(), objectName);
+            /**
+             * 返回URL
+             *
+             */
             return presignedUrl;
         } catch (Exception e) {
             logger.error("生成文件下载链接失败: fileMd5={}", fileMd5, e);
@@ -216,7 +264,11 @@ public class DocumentService {
      */
     public String getFilePreviewContent(String fileMd5, String fileName) {
         logger.info("获取文件预览内容: fileMd5={}, fileName={}", fileMd5, fileName);
-        
+
+        /**
+         * 同样是直接调用Minio的请求进行
+         * 文件内容获取
+         */
         try {
             // MinIO中的对象路径格式: merged/文件名
             String objectName = "merged/" + fileName;
@@ -232,7 +284,10 @@ public class DocumentService {
                                 .bucket("uploads")
                                 .object(objectName)
                                 .build())) {
-                    
+
+                    /**
+                     * 这里是通过字符流进行批量读取
+                     */
                     BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
                     StringBuilder content = new StringBuilder();
                     String line;
@@ -248,11 +303,19 @@ public class DocumentService {
                     if (bytesRead >= maxBytes) {
                         result += "\n... (内容已截断，仅显示前10KB)";
                     }
-                    
+
+                    /**
+                     * 将读取的文件进行放回
+                     */
                     logger.info("成功获取文本文件预览内容: fileMd5={}, contentLength={}", fileMd5, result.length());
                     return result;
                 }
             } else {
+                /**
+                 * 对于不能进行字符流读取的文件
+                 * 直接进行放回
+                 * 通知前端
+                 */
                 // 对于非文本文件，返回文件信息
                 FileUpload fileUpload = fileUploadRepository.findByFileMd5(fileMd5)
                         .orElseThrow(() -> new RuntimeException("文件不存在: " + fileMd5));
