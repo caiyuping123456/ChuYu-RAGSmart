@@ -62,10 +62,14 @@ public class HybridSearchService {
      * @return 搜索结果列表
      */
     public List<SearchResult> searchWithPermission(String query, String userId, int topK) {
+        /**
+         * 日志打印
+         */
         logger.debug("开始带权限搜索，查询: {}, 用户ID: {}", query, userId);
         
         try {
             // 获取用户有效的组织标签（包含层级关系）
+
             List<String> userEffectiveTags = getUserEffectiveOrgTags(userId);
             logger.debug("用户 {} 的有效组织标签: {}", userId, userEffectiveTags);
 
@@ -402,11 +406,17 @@ public class HybridSearchService {
      * 获取用户的有效组织标签（包含层级关系）
      */
     private List<String> getUserEffectiveOrgTags(String userId) {
+        /**
+         * 日志打印
+         */
         logger.debug("获取用户有效组织标签，用户ID: {}", userId);
         try {
             // 获取用户名
             User user;
             try {
+                /**
+                 * 根据UserId获取用户信息
+                 */
                 Long userIdLong = Long.parseLong(userId);
                 logger.debug("解析用户ID为Long: {}", userIdLong);
                 user = userRepository.findById(userIdLong)
@@ -419,10 +429,16 @@ public class HybridSearchService {
                     .orElseThrow(() -> new CustomException("User not found: " + userId, HttpStatus.NOT_FOUND));
                 logger.debug("通过用户名找到用户: {}", user.getUsername());
             }
-            
+
+            /**
+             * 获取用户的有效标签
+             */
             // 通过orgTagCacheService获取用户的有效标签集合
             List<String> effectiveTags = orgTagCacheService.getUserEffectiveOrgTags(user.getUsername());
             logger.debug("用户 {} 的有效组织标签: {}", user.getUsername(), effectiveTags);
+            /**
+             * 返回用户的有效标签
+             */
             return effectiveTags;
         } catch (Exception e) {
             logger.error("获取用户有效组织标签失败: {}", e.getMessage(), e);

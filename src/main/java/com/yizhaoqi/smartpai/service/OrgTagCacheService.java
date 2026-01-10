@@ -135,23 +135,47 @@ public class OrgTagCacheService {
      */
     public List<String> getUserEffectiveOrgTags(String username) {
         try {
+            /**
+             * 这个是进行redis的查找
+             * 因为用户注册的时候会将用户的标签存到redis中
+             */
             // 从缓存获取
             String cacheKey = USER_EFFECTIVE_TAGS_KEY_PREFIX + username;
+            /**
+             * 这个表示使用拼接的key从头到尾进行查询
+             */
             List<Object> cachedTags = redisTemplate.opsForList().range(cacheKey, 0, -1);
-            
+
+            /**
+             * 如果查询到了
+             */
             if (cachedTags != null && !cachedTags.isEmpty()) {
+                /**
+                 * 取出对应的标签
+                 * 封装为一个list集合
+                 */
                 List<String> effectiveTags = cachedTags.stream()
                         .map(Object::toString)
                         .collect(Collectors.toList());
-                
+
+                /**
+                 * 同时一定要保证redis中存在默认标签
+                 */
                 // 确保默认标签在结果中（从缓存读取的情况）
                 if (!effectiveTags.contains(DEFAULT_ORG_TAG)) {
                     effectiveTags.add(DEFAULT_ORG_TAG);
                 }
-                
+
+                /**
+                 * 返回封装好的标签list
+                 */
                 return effectiveTags;
             }
-            
+
+            /**
+             * 如果redis中没有这个标签
+             * 先从数据库看用户“名义上”属于哪些组。
+             */
             // 缓存未命中，计算有效标签集合
             List<String> userTags = getUserOrgTags(username);
             Set<String> allEffectiveTags = new HashSet<>();
@@ -159,7 +183,10 @@ public class OrgTagCacheService {
             // 如果用户有标签，添加到集合中并查找父标签
             if (userTags != null && !userTags.isEmpty()) {
                 allEffectiveTags.addAll(userTags);
-            
+
+            /**
+             * 这是最聪明的地方。如果你属于“技术部”，而“技术部”属于“公司总部”，那么你应该拥有这两个组的所有权限。
+             */
             // 查找所有父标签
             for (String tagId : userTags) {
                 collectParentTags(tagId, allEffectiveTags);
@@ -176,7 +203,10 @@ public class OrgTagCacheService {
                 redisTemplate.opsForList().rightPushAll(cacheKey, result.toArray());
                 redisTemplate.expire(cacheKey, CACHE_TTL_HOURS, TimeUnit.HOURS);
             }
-            
+
+            /**
+             * 返回结果
+             */
             return result;
         } catch (Exception e) {
             logger.error("Failed to get effective organization tags for user: {}", username, e);

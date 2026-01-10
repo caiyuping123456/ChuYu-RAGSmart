@@ -69,18 +69,30 @@ public class SearchController {
             List<SearchResult> results;
             if (userId != null) {
                 // 如果有用户ID，使用带权限的搜索
+                /**
+                 * 这个是查询用户的私人的文档
+                 */
                 results = hybridSearchService.searchWithPermission(query, userId, topK);
             } else {
+                /**
+                 * 这个是查询公共的文档
+                 */
                 // 如果没有用户ID，使用普通搜索（仅公开内容）
                 results = hybridSearchService.search(query, topK);
             }
-            
+
+            /**
+             * 混合检索是指查询私人或公共的
+             */
             LogUtils.logUserOperation(userId != null ? userId : "anonymous", "HYBRID_SEARCH", 
                     "search_query", "SUCCESS");
             LogUtils.logBusiness("HYBRID_SEARCH", userId != null ? userId : "anonymous", 
                     "混合检索完成: 返回结果数量=%d", results.size());
             monitor.end("混合检索成功");
-            
+
+            /**
+             * 封装请求进行返回
+             */
             // 构造统一响应结构
             Map<String, Object> responseBody = new HashMap<>(4);
             responseBody.put("code", 200);
