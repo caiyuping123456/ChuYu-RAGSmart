@@ -363,13 +363,24 @@ public class ChatHandler {
      * 停止响应 
      */
     public void stopResponse(String userId, WebSocketSession session) {
+        /**
+         *
+         * 调用停止按钮
+         */
         String sessionId = session.getId();
         logger.info("收到停止请求，用户ID: {}, 会话ID: {}", userId, sessionId);
         
         // 设置停止标志
+        /**
+         * 逻辑：将当前 WebSocket 会话的 ID（sessionId）存入一个名为 stopFlags 的 Map 中，并标记为 true。
+         * 作用：这是一个信号灯。系统中的其他异步生成线程（正在给用户写回复的那个线程）会定期检查这个 Map。一旦发现自己对应的 sessionId 变成了 true，那个线程就会立即停止生成并退出。
+         */
         stopFlags.put(sessionId, true);
         
         // 发送停止确认
+        /**
+         * 发送前端
+         */
         try {
             long currentTime = System.currentTimeMillis();
             Map<String, Object> response = Map.of(
@@ -385,7 +396,10 @@ public class ChatHandler {
         } catch (Exception e) {
             logger.error("发送停止确认失败: {}", e.getMessage(), e);
         }
-        
+
+        /**
+         * 开一个线程清除掉停止的状态
+         */
         // 清理停止标志（延迟清理，避免影响当前响应）
         new Thread(() -> {
             try {

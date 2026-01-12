@@ -17,6 +17,10 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
+        /**
+         * 这是告诉spring
+         * 只要是这个请求：/chat/{token}，都转发到ChatWebSocketHandler这里
+         */
         //这里在路径参数中添加token，用于验证用户身份，传递用户id
         registry.addHandler(chatWebSocketHandler, "/chat/{token}")
                 .setAllowedOrigins("*"); // 允许所有来源访问，生产环境应该限制
