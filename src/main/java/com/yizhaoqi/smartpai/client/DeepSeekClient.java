@@ -40,13 +40,46 @@ public class DeepSeekClient {
         this.model = model;
         this.aiProperties = aiProperties;
     }
-    
+
+    /**
+     * 这段代码是整个 RAG 系统中 “负责拨打电话” 的核心组件。它使用了 Java 的 WebClient（Spring WebFlux 框架的一部分）来发起一个响应式（Reactive） 的 HTTP 请求。
+     * @param userMessage
+     * @param context
+     * @param history
+     * @param onChunk
+     * @param onError
+     */
     public void streamResponse(String userMessage, 
                              String context,
                              List<Map<String, String>> history,
                              Consumer<String> onChunk,
                              Consumer<Throwable> onError) {
-        
+
+        /**
+         * sequenceDiagram
+         *     participant A as 代码 A (你/业务层)
+         *     participant B as 代码 B (WebClient/送奶工)
+         *     participant D as DeepSeek (API)
+         *
+         *     Note over A,B: 1. 只有这一次主动调用
+         *     A->>B: streamResponse(..., 回调函数F)
+         *
+         *     B->>D: 建立网络连接 (HTTP Request)
+         *
+         *     Note over B,D: 2. 此后全是自动触发
+         *
+         *     D-->>B: 返回字符 "你"
+         *     B-->>A: 执行回调函数F("你")  <-- B通知A
+         *
+         *     D-->>B: 返回字符 "好"
+         *     B-->>A: 执行回调函数F("好")  <-- B又通知A
+         *
+         *     D-->>B: 返回字符 "呀"
+         *     B-->>A: 执行回调函数F("呀")  <-- B又又通知A
+         *
+         *     D-->>B: [结束信号]
+         *     B-->>A: 执行结束逻辑
+         */
         Map<String, Object> request = buildRequest(userMessage, context, history);
         
         webClient.post()
@@ -54,13 +87,22 @@ public class DeepSeekClient {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .retrieve()
-                .bodyToFlux(String.class)
+                .bodyToFlux(String.class)// 开启流式
                 .subscribe(
                     chunk -> processChunk(chunk, onChunk),
                     onError
                 );
     }
-    
+
+    /**
+     * 在调用 AI 之前，它负责把所有的原材料（问题、资料、历史记录）和控制参数（温度、长度限制）装进一个箱子（Map）里，准备发给 DeepSeek 服务器。
+     *
+     * 这个 Map 最终会被 Spring 的 WebClient 自动转换成 JSON 格式的 HTTP 请求体。
+     * @param userMessage
+     * @param context
+     * @param history
+     * @return
+     */
     private Map<String, Object> buildRequest(String userMessage, 
                                            String context,
                                            List<Map<String, String>> history) {
@@ -86,7 +128,16 @@ public class DeepSeekClient {
         }
         return request;
     }
-    
+
+    /**
+     * 这段代码是 Prompt Engineering（提示词工程） 的核心实现部分。
+     *
+     * 它的作用是把所有的碎片信息（规则、搜索到的资料、以前的聊天记录、当前的问题）按照大模型能够理解的**“三明治结构”**组装成一个有序的列表。
+     * @param userMessage
+     * @param context
+     * @param history
+     * @return
+     */
     private List<Map<String, String>> buildMessages(String userMessage,
                                                   String context,
                                                   List<Map<String, String>> history) {
@@ -96,6 +147,8 @@ public class DeepSeekClient {
 
         // 1. 构建统一的 system 指令（规则 + 参考信息）
         StringBuilder sysBuilder = new StringBuilder();
+        // A. 注入人设规则 (Rules)
+        // 例如："你是一个专业的企业知识库助手，请只根据参考资料回答问题..."
         String rules = promptCfg.getRules();
         if (rules != null) {
             sysBuilder.append(rules).append("\n\n");

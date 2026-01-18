@@ -43,6 +43,12 @@ public class ChatHandler {
     // 停止标志 - 简单方案
     private final Map<String, Boolean> stopFlags = new ConcurrentHashMap<>();
 
+    /**
+     * 依赖注入
+     * @param redisTemplate
+     * @param searchService
+     * @param deepSeekClient
+     */
     public ChatHandler(RedisTemplate<String, String> redisTemplate,
                       HybridSearchService searchService,
                       DeepSeekClient deepSeekClient) {
@@ -52,52 +58,109 @@ public class ChatHandler {
         this.objectMapper = new ObjectMapper();
     }
 
+    /**
+     * 这个代码是ai聊天代码
+     * @param userId
+     * @param userMessage
+     * @param session
+     */
     public void processMessage(String userId, String userMessage, WebSocketSession session) {
+        /**
+         * 日志打印
+         */
         logger.info("开始处理消息，用户ID: {}, 会话ID: {}", userId, session.getId());
         try {
+            /**
+             * 从redis中获取id
+             */
             // 1. 获取或创建会话 ID
             String conversationId = getOrCreateConversationId(userId);
             logger.info("会话ID: {}, 用户ID: {}", conversationId, userId);
             
             // 为当前会话创建响应构建器
+            /**
+             * 为当前 WebSocket 绘画创建一个 StringBuilder，用于实时拼接 AI 返回的流式字符
+             * 这里是用于接受ai流式输出的容器
+             */
             responseBuilders.put(session.getId(), new StringBuilder());
             // 创建一个CompletableFuture来跟踪响应完成状态
+            /**
+             * 创建一个 CompletableFuture 异步承诺对象，用于在未来某个时刻标记回复任务的彻底完成
+             * 这里是告诉系统是否结束
+             */
             CompletableFuture<String> responseFuture = new CompletableFuture<>();
             responseFutures.put(session.getId(), responseFuture);
             
             // 2. 获取对话历史
+            /**
+             * 加载历史：从数据库/缓存获取该会话之前的聊天记录，用于实现“多轮对话”能力
+             * 这里是查询历史对话
+             */
             List<Map<String, String>> history = getConversationHistory(conversationId);
             logger.debug("获取到 {} 条历史对话", history.size());
             
             // 3. 执行带权限过滤的混合搜索
+            /**
+             * 权限检索：根据用户输入进行搜索，关键在于带上了 userId 进行权限过滤（安全合规）
+             * // 这里的 '5' 表示只取最相关的 5 条参考资料
+             * 这里是查询相关的文件
+             */
             List<SearchResult> searchResults = searchService.searchWithPermission(userMessage, userId, 5);
             logger.debug("搜索结果数量: {}", searchResults.size());
             
             // 4. 构建上下文
+            /**
+             * 5. 组装背景：将搜索到的知识碎片转换成 AI 容易理解的文本块（Context）
+             */
             String context = buildContext(searchResults);
             
             // 5. 调用 DeepSeek API 并处理流式响应
             logger.info("调用DeepSeek API生成回复");
+            /**
+             * userMessage：用户消息
+             * context：查询到的内容
+             * history：历史记录
+             */
             deepSeekClient.streamResponse(userMessage, context, history, 
                 chunk -> {
-                    // 累积响应内容
+                    /**
+                     *  动作 A: 记在小本本上 (内存积累)
+                     */
                     StringBuilder responseBuilder = responseBuilders.get(session.getId());
                     if (responseBuilder != null) {
                         responseBuilder.append(chunk);
                     }
+
+                    /**
+                     *  动作 B: 转发给用户 (实时推送)
+                     */
                     sendResponseChunk(session, chunk);
                 },
                 error -> {
-                    // 处理错误并完成future
+                    // 1. 告知前端：出错了，别等了
                     handleError(session, error);
-                    // 发送响应完成通知（错误情况）
-                    sendCompletionNotification(session);
+                    /**
+                     * 这里是出错了就报异常，同时强制结束
+                     */
+                    sendCompletionNotification(session); // 发送一个"结束/中断"信号
+
+                    // 2. 解除后端阻塞
+                    // 之前那个 CompletableFuture 还在傻傻等待，这里必须告诉它"任务失败了"
+                    // 否则主程序可能会一直挂起直到超时
                     responseFuture.completeExceptionally(error);
-                    // 清理会话响应构建器
+
+                    // 3. 打扫战场 (防止内存泄漏)
+                    // 既然会话崩了，就把内存里的 StringBuilder 和 Future 删掉
+                    /**
+                     * 如果消息回答失败，同时也删除redis中的信息
+                     */
                     responseBuilders.remove(session.getId());
                     responseFutures.remove(session.getId());
                 });
-            
+
+            /**
+             * 它的核心任务是：并不依赖 AI 主动说“我说完了”，而是通过在一旁观察 AI 是否“闭嘴”了（内容不再增加），来判定对话结束。
+             */
             // 6. 启动一个后台任务检查并标记响应完成
             new Thread(() -> {
                 try {
@@ -120,19 +183,27 @@ public class ChatHandler {
                             // 没有新内容，可以认为响应已完成
                             responseFuture.complete(responseBuilder.toString());
                             logger.info("DeepSeek响应已完成，长度: {}", responseBuilder.length());
-                            
-                            // 发送响应完成通知
+
+                            /**
+                             * 发送响应完成通知
+                             */
                             sendCompletionNotification(session);
-                            
-                            // 更新对话历史
+
+                            /**
+                             * 更新对话历史
+                             */
                             String completeResponse = responseBuilder.toString();
                             updateConversationHistory(conversationId, userMessage, completeResponse);
-                            
-                            // 输出对话存储信息以便调试
+
+                            /**
+                             * 输出对话存储信息以便调试
+                             */
                             String redisKey = "user:" + userId + ":current_conversation";
                             logger.info("对话存储信息 - Redis键: {}, 值: {}", redisKey, conversationId);
-                            
-                            // 清理会话响应构建器
+
+                            /**
+                             * 清理会话响应构建器
+                             */
                             responseBuilders.remove(session.getId());
                             responseFutures.remove(session.getId());
                             logger.info("消息处理完成，用户ID: {}", userId);
@@ -169,12 +240,18 @@ public class ChatHandler {
                                     }
                                 }
                             }
-                            
+
+                            /**
+                             * 强制结束
+                             */
                             // 如果经过多次检查仍未完成，强制完成
                             if (!responseFuture.isDone()) {
                                 responseFuture.complete(responseBuilder.toString());
                                 
                                 // 发送响应完成通知
+                                /**
+                                 * 发送发送完成
+                                 */
                                 sendCompletionNotification(session);
                                 
                                 // 更新对话历史
@@ -207,6 +284,9 @@ public class ChatHandler {
                     responseFutures.remove(session.getId());
                 }
             }).start();
+            /**
+             * 线程启动
+             */
             
         } catch (Exception e) {
             logger.error("处理消息错误: {}", e.getMessage(), e);
@@ -221,40 +301,78 @@ public class ChatHandler {
         }
     }
 
+    /**
+     * 它尝试从缓存（Redis）中获取一个已有的会话 ID（Conversation ID），如果找不到，则创建一个新的并将其存储。
+     * @param userId
+     * @return
+     */
     private String getOrCreateConversationId(String userId) {
+        /**
+         * 拼接用户的redis的id
+         */
         String key = "user:" + userId + ":current_conversation";
+        /**
+         * 查询redis中有没有
+         */
         String conversationId = redisTemplate.opsForValue().get(key);
-        
+
+        /**
+         * 如果没有，在redis中创建一个用户id
+         */
         if (conversationId == null) {
             conversationId = UUID.randomUUID().toString();
             redisTemplate.opsForValue().set(key, conversationId, Duration.ofDays(7));
             logger.info("为用户 {} 创建新的会话ID: {}", userId, conversationId);
         } else {
+            /**
+             * 有的话直接返回
+             */
             logger.info("获取到用户 {} 的现有会话ID: {}", userId, conversationId);
         }
         
         return conversationId;
     }
+
     //我们会通过消息中携带的会话 ID 去缓存中找回上下文，然后接着处理，就好像这条连接从来没断过一样。
+    /**
+     * 这个是聊天上下文查询
+     * @param conversationId
+     * @return
+     */
     private List<Map<String, String>> getConversationHistory(String conversationId) {
+        /**
+         * 这里是进行上下文查询的
+         */
         String key = "conversation:" + conversationId;
+        /**
+         * 从redis中获取到对应的消息
+         */
         String json = redisTemplate.opsForValue().get(key);
         try {
             if (json == null) {
                 logger.debug("会话 {} 没有历史记录", conversationId);
                 return new ArrayList<>();
             }
-            
+            /**
+             * Redis 存储复杂对象最常用的方式就是转换成 JSON，因为这比直接存储 Java 原生序列化对象更高效、更具可读性。
+             */
             List<Map<String, String>> history = objectMapper.readValue(json, new TypeReference<List<Map<String, String>>>() {});
             logger.debug("读取到会话 {} 的 {} 条历史记录", conversationId, history.size());
             return history;
         } catch (JsonProcessingException e) {
+            /**
+             * 异常处理
+             */
             logger.error("解析对话历史出错: {}, 会话ID: {}", e.getMessage(), conversationId, e);
             return new ArrayList<>();
         }
     }
 
     private void updateConversationHistory(String conversationId, String userMessage, String response) {
+        /**
+         * 更新历史记录
+         * 存入redis中
+         */
         String key = "conversation:" + conversationId;
         List<Map<String, String>> history = getConversationHistory(conversationId);
         
@@ -289,12 +407,23 @@ public class ChatHandler {
         }
     }
 
+    /**
+     * 这段代码是 RAG（检索增强生成）流程的最后一步准备工作。
+     * 它的任务是将机器搜出来的零散数据（List<SearchResult>），精心排版成一份 AI 模型能够读懂的**“参考资料清单”**。
+     * @param searchResults
+     * @return
+     */
     private String buildContext(List<SearchResult> searchResults) {
         if (searchResults == null || searchResults.isEmpty()) {
             // 返回空字符串，让 DeepSeekClient 按"无检索结果"逻辑处理
             return "";
         }
 
+        /**
+         * 就是将零散的单句子进行拼接为长句子
+         * 无情地丢弃第 300 个字符之后的所有内容。
+         * 防止token爆炸
+         */
         final int MAX_SNIPPET_LEN = 300; // 单段最长字符数，超出截断
         StringBuilder context = new StringBuilder();
         for (int i = 0; i < searchResults.size(); i++) {
@@ -309,6 +438,12 @@ public class ChatHandler {
         return context.toString();
     }
 
+
+    /**
+     * 它的职责非常单一且关键：负责将后端生成的字符，安全、标准地推送到前端（用户的浏览器）上。
+     * @param session
+     * @param chunk
+     */
     private void sendResponseChunk(WebSocketSession session, String chunk) {
         try {
             // 检查是否需要停止发送
@@ -327,6 +462,10 @@ public class ChatHandler {
         }
     }
 
+    /**
+     * 它的作用就是告诉前端（网页或 App）：“AI 已经把话说完了，你可以停止加载动画，并把输入框解锁了。”
+     * @param session
+     */
     private void sendCompletionNotification(WebSocketSession session) {
         try {
             long currentTime = System.currentTimeMillis();
@@ -346,6 +485,11 @@ public class ChatHandler {
         }
     }
 
+    /**
+     * 报错发送给前端
+     * @param session
+     * @param error
+     */
     private void handleError(WebSocketSession session, Throwable error) {
         logger.error("AI服务错误: {}", error.getMessage(), error);
         try {

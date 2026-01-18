@@ -70,6 +70,9 @@ public class HybridSearchService {
         try {
             // 获取用户有效的组织标签（包含层级关系）
 
+            /**
+             * 这里是获取用户对应的标签
+             */
             List<String> userEffectiveTags = getUserEffectiveOrgTags(userId);
             logger.debug("用户 {} 的有效组织标签: {}", userId, userEffectiveTags);
 
@@ -78,20 +81,36 @@ public class HybridSearchService {
             logger.debug("用户 {} 的数据库ID: {}", userId, userDbId);
 
             // 生成查询向量
+            /**
+             * 这里传入的是用户输入的文本
+             */
             final List<Float> queryVector = embedToVectorList(query);
 
             // 如果向量生成失败，仅使用文本匹配
             if (queryVector == null) {
                 logger.warn("向量生成失败，仅使用文本匹配进行搜索");
+                /**
+                 * 如果向量为空
+                 * 表示ES存储的没有对应的关键词
+                 * 使用文本匹配
+                 */
                 return textOnlySearchWithPermission(query, userDbId, userEffectiveTags, topK);
             }
 
+            /**
+             * 这里是生成了向量
+             * 就是用户输入已经向量化了
+             * 进行KNN搜索
+             */
             logger.debug("向量生成成功，开始执行混合搜索 KNN");
 
             SearchResponse<EsDocument> response = esClient.search(s -> {
                 s.index("knowledge_base");
 
                 // 1. KNN 向量召回
+                /**
+                 * 这是“懂意思”的搜索。它将用户的提问转成一串数字（向量），在 ES 中寻找含义最接近的内容。
+                 */
                 int recallK = topK * 30;
                 s.knn(kn -> kn
                         .field("vector")
@@ -101,6 +120,9 @@ public class HybridSearchService {
                 );
 
                 // 2. 混合查询
+                /**
+                 * 从海量文档中，找出内容相关且用户有权查看的所有文档。
+                 */
                 s.query(q -> q.bool(b -> b
                         // A. 必须匹配关键词
                         .must(mst -> mst.match(m -> m.field("textContent").query(query)))
@@ -129,6 +151,13 @@ public class HybridSearchService {
                         ))
                 ));
 
+                /**
+                 * 这一步是RAG 效果好坏的关键。
+                 * 前面的 KNN（向量搜索）和 match（关键词搜索）可能召回了几百条文档（recallK），其中有些可能只是偶尔提到了关键词，但不是重点。
+                 * Rescore 的作用就是在一个小范围内（比如前 150 条），用更严格的标准重新打分，把真正的“标准答案”顶到最前面。
+                 *
+                 * 本质就是答案再过滤
+                 */
                         // 第二阶段 BM25 rescore
                         s.rescore(r -> r
                                 .windowSize(recallK)
@@ -149,6 +178,12 @@ public class HybridSearchService {
             logger.debug("Elasticsearch查询执行完成，命中数量: {}, 最大分数: {}", 
                 response.hits().total().value(), response.hits().maxScore());
 
+
+            /**
+             * 这个就是给查询道德查询结果
+             * 进行结构封装
+             * 同时放回
+             */
             List<SearchResult> results = response.hits().hits().stream()
                     .map(hit -> {
                         assert hit.source() != null;
@@ -171,6 +206,9 @@ public class HybridSearchService {
             attachFileNames(results);
             return results;
         } catch (Exception e) {
+            /**
+             * 异常处理
+             */
             logger.error("带权限的搜索失败", e);
             // 发生异常时尝试使用纯文本搜索作为后备方案
             try {
@@ -188,6 +226,9 @@ public class HybridSearchService {
      */
     private List<SearchResult> textOnlySearchWithPermission(String query, String userDbId, List<String> userEffectiveTags, int topK) {
         try {
+            /**
+             * 开始文本搜索
+             */
             logger.debug("开始执行纯文本搜索，用户数据库ID: {}, 标签: {}", userDbId, userEffectiveTags);
 
             SearchResponse<EsDocument> response = esClient.search(s -> s
@@ -195,6 +236,10 @@ public class HybridSearchService {
                     .query(q -> q
                             .bool(b -> b
                                     // 匹配内容相关性
+                                    /**
+                                     * 这里是通过文本进行查询
+                                     * 就是es中的模糊查询
+                                     */
                                     .must(m -> m
                                             .match(ma -> ma
                                                     .field("textContent")
@@ -202,6 +247,10 @@ public class HybridSearchService {
                                             )
                                     )
                                     // 权限过滤
+                                    /**
+                                     * 这个是对查询的内容进行过滤
+                                     * 只有自己可以访问的才能进行输出
+                                     */
                                     .filter(f -> f
                                             .bool(bf -> bf
                                                     // 条件1: 用户可以访问自己的文档
@@ -245,6 +294,9 @@ public class HybridSearchService {
                                     )
                             )
                     )
+                            /**
+                             * 置信度设置
+                             */
                     .minScore(0.3d)
                     .size(topK),
                     EsDocument.class
@@ -253,6 +305,10 @@ public class HybridSearchService {
             logger.debug("纯文本查询执行完成，命中数量: {}, 最大分数: {}", 
                 response.hits().total().value(), response.hits().maxScore());
 
+            /**
+             * 这里是处理结果
+             * 转为自己的定义的格式
+             */
             List<SearchResult> results = response.hits().hits().stream()
                     .map(hit -> {
                         assert hit.source() != null;
@@ -475,6 +531,11 @@ public class HybridSearchService {
         }
     }
 
+    /**
+     * 这个代码是将md5进行补充
+     * 替换为数据库中的数据
+     * @param results
+     */
     private void attachFileNames(List<SearchResult> results) {
         if (results == null || results.isEmpty()) {
             return;
