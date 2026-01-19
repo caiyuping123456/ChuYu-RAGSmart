@@ -1,5 +1,7 @@
 package com.yizhaoqi.smartpai.client;
 
+import com.yizhaoqi.smartpai.langchain4j.chat.ChatUtils;
+import jakarta.annotation.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,9 @@ public class DeepSeekClient {
     private final String model;
     private final AiProperties aiProperties;
     private static final Logger logger = LoggerFactory.getLogger(DeepSeekClient.class);
+
+    @Resource
+    ChatUtils chatUtils;
     
     public DeepSeekClient(@Value("${deepseek.api.url}") String apiUrl,
                          @Value("${deepseek.api.key}") String apiKey,
@@ -80,18 +85,25 @@ public class DeepSeekClient {
          *     D-->>B: [结束信号]
          *     B-->>A: 执行结束逻辑
          */
-        Map<String, Object> request = buildRequest(userMessage, context, history);
-        
-        webClient.post()
-                .uri("/chat/completions")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(request)
-                .retrieve()
-                .bodyToFlux(String.class)// 开启流式
-                .subscribe(
-                    chunk -> processChunk(chunk, onChunk),
-                    onError
-                );
+//        Map<String, Object> request = buildRequest(userMessage, context, history);
+//        System.out.println("content"+context);
+//        webClient.post()
+//                .uri("/chat/completions")
+//                .contentType(MediaType.APPLICATION_JSON)
+//                .bodyValue(request)
+//                .retrieve()
+//                .bodyToFlux(String.class)// 开启流式
+//                .subscribe(
+//                    chunk -> processChunk(chunk, onChunk),
+//                    onError
+//                );
+        logger.info("开始流式请求：用户消息={}, 上下文长度={}, 历史数={}",
+                userMessage,
+                context != null ? context.length() : 0,
+                history != null ? history.size() : 0);
+
+        // 直接调用 ChatUtils，它内部会处理 List<Map> 到 List<ChatMessage> 的转换
+        chatUtils.streamResponse(userMessage, context, history, onChunk, onError);
     }
 
     /**
