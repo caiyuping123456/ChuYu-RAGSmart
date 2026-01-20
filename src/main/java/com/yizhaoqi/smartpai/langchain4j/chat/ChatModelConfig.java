@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-public class ModelConfig {
+public class ChatModelConfig {
 
     @Resource
     LangChain4jConfig langChain4jConfig;

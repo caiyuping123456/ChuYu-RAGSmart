@@ -23,6 +23,9 @@ public class ChatUtils {
                                Consumer<String> onChunk,
                                Consumer<Throwable> onError) {
         System.out.println("content"+context);
+        /**
+         * 这个是langchain4j的流式响应
+         */
         chatClient.chat(userMessage,context,toList(history))
                 .onPartialResponse(onChunk)
                 .onError(onError)
