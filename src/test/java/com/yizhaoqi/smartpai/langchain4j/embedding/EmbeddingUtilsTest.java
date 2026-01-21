@@ -18,6 +18,7 @@ class EmbeddingUtilsTest {
     @Resource
     EmbeddingClient embeddingClient;
 
+
     @Test
     void embed() {
         List<String> texts = List.of("你好，我是帅哥","hehehehehehehwoshi","你很酷吗？");

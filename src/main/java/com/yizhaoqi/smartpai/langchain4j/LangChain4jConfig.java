@@ -7,6 +7,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Component;
 
+/**
+ * 这个是langchain4j配置文件
+ */
 @Data
 @Configuration
 public class LangChain4jConfig {

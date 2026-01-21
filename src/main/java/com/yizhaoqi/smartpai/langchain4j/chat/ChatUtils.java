@@ -4,6 +4,7 @@ import dev.langchain4j.data.message.*;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.service.tool.ToolExecution;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -13,16 +14,26 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @Component
+@Slf4j
 public class ChatUtils {
     @Resource
     ChatClient chatClient;
 
+    /**
+     * 流式调用方法
+     * 闯入的是一个Consumer类
+     * @param userMessage
+     * @param context
+     * @param history
+     * @param onChunk
+     * @param onError
+     */
     public void streamResponse(String userMessage,
                                String context,
                                List<Map<String, String>> history,
                                Consumer<String> onChunk,
                                Consumer<Throwable> onError) {
-        System.out.println("content"+context);
+        log.info("langchain4j的流式响应");
         /**
          * 这个是langchain4j的流式响应
          */
@@ -30,8 +41,14 @@ public class ChatUtils {
                 .onPartialResponse(onChunk)
                 .onError(onError)
                 .start();
+        log.info("langchain4j正在流式调用");
     }
 
+    /**
+     * 对参数格式进行处理
+     * @param history
+     * @return
+     */
     private List<ChatMessage>  toList(List<Map<String, String>> history){
         if (history == null) return new ArrayList<>();
         // 1. 转换历史记录 (Map -> ChatMessage)
@@ -44,6 +61,15 @@ public class ChatUtils {
         }).collect(Collectors.toList());
     }
 
+    /**
+     * 这个是测试方法
+     * @param userMessage
+     * @param context
+     * @param history
+     * @param onChunk
+     * @param onError
+     * @throws InterruptedException
+     */
     public void Test(String userMessage,
                      String context,
                      List<Map<String, String>> history,

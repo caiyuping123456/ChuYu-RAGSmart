@@ -6,11 +6,13 @@ import co.elastic.clients.elasticsearch.core.SearchResponse;
 import com.yizhaoqi.smartpai.client.EmbeddingClient;
 import com.yizhaoqi.smartpai.entity.EsDocument;
 import com.yizhaoqi.smartpai.entity.SearchResult;
+import com.yizhaoqi.smartpai.langchain4j.embedding.EmbeddingUtils;
 import com.yizhaoqi.smartpai.model.User;
 import com.yizhaoqi.smartpai.exception.CustomException;
 import com.yizhaoqi.smartpai.repository.UserRepository;
 import com.yizhaoqi.smartpai.repository.FileUploadRepository;
 import com.yizhaoqi.smartpai.model.FileUpload;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +41,8 @@ public class HybridSearchService {
 
     @Autowired
     private EmbeddingClient embeddingClient;
+    @Resource
+    private EmbeddingUtils embeddingUtils;
 
     @Autowired
     private UserService userService;
@@ -441,7 +445,7 @@ public class HybridSearchService {
      */
     private List<Float> embedToVectorList(String text) {
         try {
-            List<float[]> vecs = embeddingClient.embed(List.of(text));
+            List<float[]> vecs = embeddingUtils.embed(List.of(text));
             if (vecs == null || vecs.isEmpty()) {
                 logger.warn("生成的向量为空");
                 return null;
