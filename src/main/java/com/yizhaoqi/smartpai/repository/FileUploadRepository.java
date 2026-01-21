@@ -51,7 +51,11 @@ public interface FileUploadRepository extends JpaRepository<FileUpload, Long> {
      */
     @Query("SELECT f FROM FileUpload f WHERE f.userId = :userId OR f.isPublic = true OR (f.orgTag IN :orgTagList AND f.isPublic = false)")
     List<FileUpload> findAccessibleFiles(@Param("userId") String userId, @Param("orgTagList") List<String> orgTagList);
-    
+
+    @Query("SELECT f FROM FileUpload f WHERE f.userId = :userId OR (f.orgTag IN :orgTagList AND f.isPublic = true)")
+    List<FileUpload> findAccessibleIsPulicFiles(@Param("userId") String userId, @Param("orgTagList") List<String> orgTagList);
+
+
     /**
      * 查询用户自己上传的所有文件
      * 
@@ -61,4 +65,5 @@ public interface FileUploadRepository extends JpaRepository<FileUpload, Long> {
     List<FileUpload> findByUserId(String userId);
 
     List<FileUpload> findByFileMd5In(List<String> md5List);
+
 }

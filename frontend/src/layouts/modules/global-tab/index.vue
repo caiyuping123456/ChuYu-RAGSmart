@@ -169,13 +169,13 @@ init();
 </script>
 
 <template>
-  <DarkModeContainer class="size-full flex-y-center px-16px shadow-tab">
+  <DarkModeContainer class="tab-container size-full flex-y-center px-16px">
     <div ref="bsWrapper" class="h-full flex-1-hidden">
       <BetterScroll ref="bsScroll" :options="{ scrollX: true, scrollY: false, click: !isPCFlag }" @click="removeFocus">
         <div
           ref="tabRef"
           class="h-full flex pr-18px"
-          :class="[themeStore.tab.mode === 'chrome' ? 'items-end' : 'items-center gap-12px']"
+          :class="[themeStore.tab.mode === 'chrome' ? 'items-end' : 'items-center gap-8px']"
         >
           <PageTab
             v-for="tab in tabStore.tabs"
@@ -186,6 +186,7 @@ init();
             :active="tab.id === tabStore.activeTabId"
             :active-color="themeStore.themeColor"
             :closable="!tabStore.isTabRetain(tab.id)"
+            class="tab-item"
             @pointerdown="tabStore.switchRouteByTab(tab)"
             @close="handleCloseTab(tab)"
             @contextmenu="handleContextMenu($event, tab.id)"
@@ -198,8 +199,8 @@ init();
         </div>
       </BetterScroll>
     </div>
-    <ReloadButton :loading="!appStore.reloadFlag" @click="refresh" />
-    <FullScreen :full="appStore.fullContent" @click="appStore.toggleFullContent" />
+    <ReloadButton :loading="!appStore.reloadFlag" class="tab-action-btn" @click="refresh" />
+    <FullScreen :full="appStore.fullContent" class="tab-action-btn" @click="appStore.toggleFullContent" />
   </DarkModeContainer>
   <ContextMenu
     :visible="dropdown.visible"
@@ -211,4 +212,25 @@ init();
   />
 </template>
 
-<style scoped></style>
+<style scoped lang="scss">
+.tab-container {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(253, 245, 250, 0.9) 100%) !important;
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(245, 87, 108, 0.06) !important;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.03) !important;
+}
+
+.tab-item {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.tab-action-btn {
+  margin-left: 8px;
+  border-radius: 10px !important;
+  transition: all 0.3s ease !important;
+}
+
+.tab-action-btn:hover {
+  background: linear-gradient(135deg, rgba(245, 87, 108, 0.08) 0%, rgba(240, 147, 251, 0.08) 100%) !important;
+}
+</style>

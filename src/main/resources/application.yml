@@ -2,10 +2,15 @@ server:
   port: 8081 # 指定端口号
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/PaiSmart?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+#    url: jdbc:mysql://127.0.0.1:3306/paismart?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+#    username: root
+#    password: caiyuping2003
+#    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/paismart?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: root
     password: 20031217
     driver-class-name: com.mysql.cj.jdbc.Driver
+
   jpa:
     hibernate:
       ddl-auto: update
@@ -15,8 +20,9 @@ spring:
         dialect: org.hibernate.dialect.MySQL8Dialect
   data:
     redis:
-      host: localhost
+      host: 127.0.0.1
       port: 6379
+#      password: caiyuping2003
       password: 123456
   servlet:
     multipart:
@@ -54,12 +60,21 @@ spring:
     max-in-memory-size: 16MB    # 增加编解码大小限制
 
 
+#minio:
+#  endpoint: http://124.221.27.141:9000
+#  accessKey: minioadmin
+#  secretKey: caiyuping2003
+#  bucketName: uploads
+#  publicUrl: http://124.221.27.141:9000/uploads
 minio:
   endpoint: http://localhost:9000
   accessKey: minioadmin
   secretKey: minioadmin
   bucketName: uploads
   publicUrl: http://localhost:9000
+
+
+
 jwt:
   secret-key: "PXrQbuCwXwOZzkML/Vm2S5rSwt1iybvmKtGDzVEu+Hc="
 
@@ -75,6 +90,13 @@ file:
     chunk-size: 512 # 每个文本块的最大字符数
     buffer-size: 8192    # 8KB 缓冲区
     max-memory-threshold: 0.8  # 80% 内存阈值
+
+#elasticsearch:
+#  host: 120.48.177.166  # Elasticsearch主机地址
+#  port: 9200            # Elasticsearch端口号
+#  scheme: http         # 协议（http/https）
+#  username: elastic     # 安装后生成的默认用户
+#  password: caiyuping2003
 
 elasticsearch:
   host: localhost       # Elasticsearch主机地址

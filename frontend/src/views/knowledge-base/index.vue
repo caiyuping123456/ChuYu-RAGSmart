@@ -265,14 +265,14 @@ async function onBeforeUpload(
 </script>
 
 <template>
-  <div class="min-h-500px flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
-    <NCard title="文件列表" :bordered="false" size="small" class="sm:flex-1-hidden card-wrapper">
+  <div class="knowledge-container flex-col-stretch gap-16px overflow-hidden lt-sm:overflow-auto">
+    <NCard title="文件列表" :bordered="false" size="small" class="file-card sm:flex-1-hidden">
       <template #header-extra>
         <TableHeaderOperation v-model:columns="columnChecks" :loading="loading" @add="handleUpload" @refresh="getList">
           <template #prefix>
-            <NButton size="small" ghost type="primary" @click="handleSearch">
+            <NButton size="small" type="primary" class="search-btn" @click="handleSearch">
               <template #icon>
-                <icon-ic-round-search class="text-icon" />
+                <icon-ic-round-search class="btn-icon" />
               </template>
               检索知识库
             </NButton>
@@ -290,14 +290,14 @@ async function onBeforeUpload(
         remote
         :row-key="row => row.id"
         :pagination="false"
-        class="sm:h-full"
+        class="data-table sm:h-full"
       />
     </NCard>
     <UploadDialog v-model:visible="uploadVisible" />
     <SearchDialog v-model:visible="searchVisible" />
-    
+
     <!-- 文件预览弹窗 -->
-    <NModal v-model:show="previewVisible" preset="card" title="文件预览" style="width: 80%; max-width: 1000px;">
+    <NModal v-model:show="previewVisible" preset="card" title="文件预览" class="preview-modal">
       <FilePreview
         :file-name="previewFileName"
         :visible="previewVisible"
@@ -308,13 +308,135 @@ async function onBeforeUpload(
 </template>
 
 <style scoped lang="scss">
-.file-list-container {
-  transition: width 0.3s ease;
+.knowledge-container {
+  min-height: 500px;
+  position: relative;
+  background: linear-gradient(135deg, #fafafa 0%, #f5f0ff 50%, #fff5f8 100%);
+  border-radius: 24px;
+  padding: 24px;
 }
 
-:deep() {
-  .n-progress-icon.n-progress-icon--as-text {
-    white-space: nowrap;
+/* 装饰性背景 */
+.knowledge-container::before {
+  content: '';
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 200px;
+  height: 200px;
+  background: linear-gradient(135deg, rgba(245, 87, 108, 0.1) 0%, rgba(240, 147, 251, 0.1) 100%);
+  border-radius: 50%;
+  filter: blur(40px);
+  pointer-events: none;
+}
+
+.knowledge-container::after {
+  content: '';
+  position: absolute;
+  bottom: -30px;
+  left: -30px;
+  width: 150px;
+  height: 150px;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border-radius: 50%;
+  filter: blur(30px);
+  pointer-events: none;
+}
+
+.file-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(10px);
+  border-radius: 20px !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(245, 87, 108, 0.05) !important;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.file-card:hover {
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(245, 87, 108, 0.1) !important;
+  transform: translateY(-2px);
+}
+
+.file-card :deep(.n-card-header) {
+  background: linear-gradient(135deg, rgba(245, 87, 108, 0.03) 0%, rgba(240, 147, 251, 0.03) 100%) !important;
+  border-bottom: 1px solid rgba(245, 87, 108, 0.08) !important;
+  padding: 16px 20px !important;
+}
+
+.file-card :deep(.n-card-header__title) {
+  color: #2d3748 !important;
+  font-weight: 700 !important;
+  font-size: 17px !important;
+  letter-spacing: 0.5px;
+}
+
+.search-btn {
+  background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%) !important;
+  border: none !important;
+  border-radius: 12px !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(245, 87, 108, 0.25) !important;
+}
+
+.search-btn:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 8px 25px rgba(245, 87, 108, 0.35) !important;
+}
+
+.btn-icon {
+  font-size: 16px;
+}
+
+.data-table {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.data-table :deep(.n-data-table-wrapper) {
+  border-radius: 12px;
+}
+
+.data-table :deep(.n-data-table-th) {
+  background: linear-gradient(135deg, #fafafa 0%, #f8f4ff 100%) !important;
+  color: #4a5568 !important;
+  font-weight: 600 !important;
+  border-bottom: 2px solid rgba(245, 87, 108, 0.1) !important;
+}
+
+.data-table :deep(.n-data-table-td) {
+  color: #4a5568 !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04) !important;
+  transition: all 0.2s ease;
+}
+
+.data-table :deep(.n-data-table-tr:hover .n-data-table-td) {
+  background: linear-gradient(135deg, rgba(245, 87, 108, 0.03) 0%, rgba(240, 147, 251, 0.03) 100%) !important;
+}
+
+.data-table :deep(.n-data-table-empty) {
+  padding: 60px 0 !important;
+}
+
+.preview-modal {
+  width: 80%;
+  max-width: 1000px;
+
+  :deep(.n-card) {
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(10px);
+    border-radius: 20px !important;
+    border: 1px solid rgba(255, 255, 255, 0.8) !important;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15) !important;
   }
+}
+
+:deep(.n-progress-icon.n-progress-icon--as-text) {
+  white-space: nowrap;
 }
 </style>

@@ -64,11 +64,10 @@ public class ConversationController {
             User user = userRepository.findByUsername(username)
                     .orElseThrow(() -> new CustomException("用户不存在", HttpStatus.NOT_FOUND));
             
-            // 尝试不同格式的用户ID来查询Redis
+            // 尝试不同格式的用户ID来查询Redis，优先使用username（WebSocket存储时用的就是username）
             List<String> possibleUserIds = new ArrayList<>();
+            possibleUserIds.add(username);                 // 用户名（WebSocket存储时用的就是这个）- 优先匹配
             possibleUserIds.add(user.getId().toString());    // 数据库ID（Long转String）
-            possibleUserIds.add(username);                 // 用户名
-            possibleUserIds.add(String.valueOf(user.getId())); // 另一种数据库ID格式
             
             // 检查所有Redis键，尝试找到与用户相关的会话ID
             List<String> matchingKeys = new ArrayList<>();

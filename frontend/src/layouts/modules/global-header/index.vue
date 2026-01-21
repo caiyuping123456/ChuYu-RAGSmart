@@ -29,8 +29,8 @@ const isDev = import.meta.env.DEV;
 </script>
 
 <template>
-  <DarkModeContainer class="ml-12 h-full flex-y-center justify-between bg-transparent">
-    <div id="header-extra" class="h-full flex-col justify-center rd-full bg-container shadow-2xl"></div>
+  <DarkModeContainer class="header-wrapper ml-12 h-full flex-y-center justify-between bg-transparent">
+    <div id="header-extra" class="header-extra h-full flex-col justify-center"></div>
     <!-- <GlobalLogo v-if="showLogo" class="h-full" :style="{ width: themeStore.sider.width + 'px' }" /> -->
     <MenuToggler
       v-if="showMenuToggler && appStore.isMobile"
@@ -43,7 +43,7 @@ const isDev = import.meta.env.DEV;
       <GlobalBreadcrumb v-if="!appStore.isMobile" class="ml-12px" />
     </div>
 -->
-    <div class="h-full flex-y-center justify-end rd-full bg-container px-8 shadow-2xl">
+    <div class="header-actions h-full flex-y-center justify-end px-8">
       <GlobalSearch />
       <FullScreen v-if="!appStore.isMobile" :full="isFullscreen" @click="toggle" />
       <LangSwitch
@@ -63,4 +63,35 @@ const isDev = import.meta.env.DEV;
   </DarkModeContainer>
 </template>
 
-<style scoped></style>
+<style scoped>
+.header-wrapper {
+  position: relative;
+}
+
+.header-extra {
+  border-radius: 16px !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(12px);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(245, 87, 108, 0.04) !important;
+  transition: all 0.3s ease;
+}
+
+.header-actions {
+  border-radius: 16px !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(12px);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(245, 87, 108, 0.04) !important;
+  transition: all 0.3s ease;
+}
+
+.header-actions:hover,
+.header-extra:hover {
+  box-shadow:
+    0 6px 30px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(245, 87, 108, 0.08) !important;
+}
+</style>

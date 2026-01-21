@@ -879,5 +879,16 @@ public class UserService {
         
         return result;
     }
+
+    public Long getValidatedUserId(String inputUsername) {
+        return userRepository.findByUsername(inputUsername)
+                .map(User::getId) // 提取 username 字段
+                .orElse(null);          // 不存在则返回 null
+    }
+
+    public User getUserById(Long userId) {
+        return userRepository.findById(userId)
+                .orElse(null); // 用户不存在时返回 null
+    }
 }
 

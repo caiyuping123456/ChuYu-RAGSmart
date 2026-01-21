@@ -122,6 +122,7 @@ function getSiderCollapsedWidth() {
     :footer-height="themeStore.footer.height"
     :fixed-footer="themeStore.footer.fixed"
     :right-footer="themeStore.footer.right"
+    class="base-layout"
   >
     <template #header>
       <GlobalHeader v-bind="headerProps" />
@@ -144,5 +145,26 @@ function getSiderCollapsedWidth() {
 <style lang="scss">
 #__SCROLL_EL_ID__ {
   @include scrollbar();
+}
+
+.base-layout {
+  background: linear-gradient(135deg, #f8f6fa 0%, #fdf5f8 50%, #f5f0ff 100%) !important;
+  min-height: 100vh;
+}
+
+/* 自定义滚动条样式 */
+.base-layout ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.base-layout ::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, rgba(245, 87, 108, 0.3) 0%, rgba(240, 147, 251, 0.3) 100%);
+  border-radius: 3px;
+}
+
+.base-layout ::-webkit-scrollbar-track {
+  background: rgba(245, 87, 108, 0.05);
+  border-radius: 3px;
 }
 </style>

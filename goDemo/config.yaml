@@ -1,0 +1,85 @@
+server:
+  port: 8081
+
+mysql:
+  host: 127.0.0.1
+  port: 3306
+  database: paismart
+  username: root
+  password: caiyuping2003
+  charset: utf8mb4
+  max_idle_conns: 10
+  max_open_conns: 100
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+  password: caiyuping2003
+  db: 0
+
+kafka:
+  brokers:
+    - 127.0.0.1:9092
+  topic: file-processing-topic1
+  dlt_topic: file-processing-dlt
+  group_id: file-processing-group
+
+minio:
+  endpoint: 124.221.27.141:9000
+  access_key: minioadmin
+  secret_key: caiyuping2003
+  bucket: uploads
+  public_url: http://124.221.27.141:9000/uploads
+  use_ssl: false
+
+elasticsearch:
+  host: 120.48.177.166
+  port: 9200
+  scheme: http
+  username: elastic
+  password: caiyuping2003
+  index_name: knowledge_base
+
+deepseek:
+  url: https://api.siliconflow.cn/v1
+  model: deepseek-ai/DeepSeek-R1-0528-Qwen3-8B
+  api_key: sk-eejpytshnxihqbeedqsgfuixodazjxjxjetbounsqbzzygtr
+
+embedding:
+  url: https://api.siliconflow.cn/v1
+  model: BAAI/bge-m3
+  api_key: sk-eejpytshnxihqbeedqsgfuixodazjxjxjetbounsqbzzygtr
+  dimension: 1024
+  batch_size: 10
+
+jwt:
+  secret: cGFpU21hcnRTZWNyZXRLZXkyMDI1QmFzZTY0RW5jb2RlZFNFQ1JFVCEhIQ==
+  access_expire: 3600       # 1 hour
+  refresh_expire: 604800    # 7 days
+
+admin:
+  username: admin
+  password: admin123
+  primary_org: default
+  tags: default,admin
+
+file:
+  max_file_size: 52428800      # 50MB
+  max_request_size: 104857600  # 100MB
+  chunk_size: 512
+  buffer_size: 8192
+  memory_threshold: 0.8
+
+ai:
+  system_prompt: |
+    你是派聪明(PaiCongMing)知识库助手。请遵循以下规则回答用户问题：
+    1. 始终使用中文回答。
+    2. 先给出结论，再展开说明。
+    3. 引用资料时使用格式：<<REF>>来源文件名#分块编号<<END>>
+    4. 如果无法从提供的资料中找到答案，请明确告知用户。
+    5. 不要编造任何信息。
+  temperature: 0.3
+  max_tokens: 2000
+  top_p: 0.9
+  ref_start: "<<REF>>"
+  ref_end: "<<END>>"

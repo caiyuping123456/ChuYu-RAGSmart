@@ -95,10 +95,10 @@ watch(visible, () => {
     :title="title"
     :show-icon="false"
     :mask-closable="false"
-    class="w-500px!"
+    class="operate-modal"
     @positive-click="handleSubmit"
   >
-    <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100" mt-10>
+    <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100" class="operate-form">
       <NFormItem label="标签Id" path="tagId">
         <NInput v-model:value="model.tagId" placeholder="请输入标签Id" maxlength="60" />
       </NFormItem>
@@ -122,11 +122,40 @@ watch(visible, () => {
     </NForm>
     <template #action>
       <NSpace :size="16">
-        <NButton @click="close">取消</NButton>
-        <NButton type="primary" @click="handleSubmit">保存</NButton>
+        <NButton class="cancel-btn" @click="close">取消</NButton>
+        <NButton type="primary" class="save-btn" @click="handleSubmit">保存</NButton>
       </NSpace>
     </template>
   </NModal>
 </template>
 
-<style scoped></style>
+<style scoped lang="scss">
+.operate-modal {
+  width: 500px !important;
+
+  :deep(.n-dialog) {
+    background: #ffffff !important;
+    border-radius: 16px !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  :deep(.n-dialog__title) {
+    color: #2d3748 !important;
+    font-weight: 600 !important;
+  }
+}
+
+.operate-form {
+  margin-top: 20px;
+}
+
+.cancel-btn {
+  border-radius: 8px !important;
+}
+
+.save-btn {
+  background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%) !important;
+  border: none !important;
+  border-radius: 8px !important;
+}
+</style>

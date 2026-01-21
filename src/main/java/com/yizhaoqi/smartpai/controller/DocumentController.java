@@ -5,10 +5,11 @@ import com.yizhaoqi.smartpai.model.OrganizationTag;
 import com.yizhaoqi.smartpai.repository.FileUploadRepository;
 import com.yizhaoqi.smartpai.repository.OrganizationTagRepository;
 import com.yizhaoqi.smartpai.service.DocumentService;
+import com.yizhaoqi.smartpai.service.UserService;
 import com.yizhaoqi.smartpai.utils.LogUtils;
 import com.yizhaoqi.smartpai.utils.JwtUtils;
+import jakarta.annotation.Resource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -510,6 +511,8 @@ public class DocumentController {
                     && authentication.getPrincipal() instanceof UserDetails) {
                     UserDetails userDetails = (UserDetails) authentication.getPrincipal();
                     userId = userDetails.getUsername();
+//                    userId = String.valueOf(userService.getValidatedUserId(userDetails.getUsername()));
+                    System.out.println("userId是："+userId);
                     // 从userDetails中获取组织标签信息
                     orgTags = userDetails.getAuthorities().stream()
                         .map(auth -> auth.getAuthority().replace("ROLE_", ""))
@@ -576,6 +579,7 @@ public class DocumentController {
             
             // 有token的情况，查找用户可访问的文件
             List<FileUpload> accessibleFiles = documentService.getAccessibleFiles(userId, orgTags);
+            System.out.println(accessibleFiles);
 
             /**
              * 有token的

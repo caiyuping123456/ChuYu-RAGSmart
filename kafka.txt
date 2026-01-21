@@ -19,3 +19,65 @@
   --bootstrap-server 127.0.0.1:9092 \
   --partitions 3 \
   --replication-factor 1
+
+docker run -d --name kafka   -p 9092:9092 --link zookeeper -v /root/kafka:/kafka -e KAFKA_BROKER_ID=0 -e KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181 -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092 -e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092 -e KAFKA_LOG_DIRS=/kafka -e KAFKA_AUTO_CREATE_TOPICS_ENABLE=false -e KAFKA_HEAP_OPTS="-Xmx256M -Xms128M" wurstmeister/kafka
+
+# 启动容器（保持前台运行以便初始化密码）
+docker run -d --name es -p 9200:9200 -e "discovery.type=single-node" -e "ELASTIC_PASSWORD=caiyuping2003" -v /root/es/data:/usr/share/elasticsearch/data -v /root/es/logs:/usr/share/elasticsearch/logs --memory=512m docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+
+kafka:
+# 1. 彻底删除那个一直在报错重启的容器
+docker rm -f kafka
+
+# 2. 修改宿主机目录权限，让容器内的用户可以读写
+# 1001 是 Bitnami 默认用户的 UID
+sudo chown -R 1001:1001 /root/docker/kafka/data
+
+# 3. 稳妥起见，把权限直接拉满（可选，如果上面那条不行就用这个）
+sudo chmod -R 777 /root/docker/kafka/data
+
+# 4. 重新启动容器
+docker rm -f kafka  # 先删掉旧的
+
+docker run -d \
+  --name kafka \
+  --restart=always \
+  -p 9092:9092 \
+  -p 9093:9093 \
+  -v /root/docker/kafka/data:/bitnami/kafka \
+  -e KAFKA_CFG_NODE_ID=1 \
+  -e KAFKA_CFG_PROCESS_ROLES=controller,broker \
+  -e KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093 \
+  -e KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:9092 \
+  -e KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@127.0.0.1:9093 \
+  -e KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+  -e KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT \
+  -e KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+  -e KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1 \
+  -e KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR=1 \
+  -e ALLOW_PLAINTEXT_LISTENER=yes \
+  bitnami/kafka:latest
+
+# 创建业务 Topic
+docker exec -it kafka /opt/bitnami/kafka/bin/kafka-topics.sh --create \
+  --topic file-processing-topic1 \
+  --bootstrap-server localhost:9092 \
+  --partitions 3 \
+  --replication-factor 1
+
+# 创建死信队列 Topic
+docker exec -it kafka /opt/bitnami/kafka/bin/kafka-topics.sh --create \
+  --topic file-processing-dlt \
+  --bootstrap-server localhost:9092 \
+  --partitions 3 \
+  --replication-factor 1
+
+
+  docker build -t smart-pai:1.0 .
+
+
+  docker run -d \
+    --name smart-pai-app \
+    --network host \
+    --restart always \
+    smart-pai:1.0

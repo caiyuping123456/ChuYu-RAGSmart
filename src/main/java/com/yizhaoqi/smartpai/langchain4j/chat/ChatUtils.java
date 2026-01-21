@@ -27,18 +27,25 @@ public class ChatUtils {
      * @param history
      * @param onChunk
      * @param onError
+     * @param onComplete 完成回调
      */
     public void streamResponse(String userMessage,
                                String context,
                                List<Map<String, String>> history,
                                Consumer<String> onChunk,
-                               Consumer<Throwable> onError) {
+                               Consumer<Throwable> onError,
+                               Runnable onComplete) {
         log.info("langchain4j的流式响应");
         /**
          * 这个是langchain4j的流式响应
          */
         chatClient.chat(userMessage,context,toList(history))
                 .onPartialResponse(onChunk)
+                .onCompleteResponse(response -> {
+                    if (onComplete != null) {
+                        onComplete.run();
+                    }
+                })
                 .onError(onError)
                 .start();
         log.info("langchain4j正在流式调用");

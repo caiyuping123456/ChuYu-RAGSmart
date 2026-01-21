@@ -56,9 +56,9 @@ async function getList() {
 </script>
 
 <template>
-  <div class="h-full">
+  <div class="history-container">
     <Teleport defer to="#header-extra">
-      <div class="px-10">
+      <div class="filter-wrapper">
         <NForm :model="params" label-placement="left" :show-feedback="false" inline>
           <NFormItem label="用户">
             <TheSelect
@@ -68,25 +68,100 @@ async function getList() {
               key-field="content"
               value-field="userId"
               label-field="username"
-              class="clear w-200px!"
+              class="user-select"
               :clearable="false"
             />
           </NFormItem>
           <NFormItem label="时间">
-            <NDatePicker v-model:value="range" type="daterange" class="clear" />
+            <NDatePicker v-model:value="range" type="daterange" class="date-picker" />
           </NFormItem>
         </NForm>
       </div>
     </Teleport>
-    <NScrollbar ref="scrollbarRef">
-      <NSpin :show="loading" class="h-full">
+    <NScrollbar class="history-scrollbar">
+      <NSpin :show="loading" class="history-spin">
         <VueMarkdownItProvider>
           <ChatMessage v-for="(item, index) in list" :key="index" :msg="item" />
         </VueMarkdownItProvider>
-        <NEmpty v-if="!list.length" description="暂无数据" class="mt-60" />
+        <NEmpty v-if="!list.length" description="暂无数据" class="empty-state" />
       </NSpin>
     </NScrollbar>
   </div>
 </template>
 
-<style scoped lang="scss"></style>
+<style scoped lang="scss">
+.history-container {
+  height: 100%;
+  position: relative;
+  background: linear-gradient(135deg, #fafafa 0%, #f0f7ff 50%, #fff5f8 100%);
+  border-radius: 24px;
+  padding: 20px;
+}
+
+/* 装饰性背景 */
+.history-container::before {
+  content: '';
+  position: absolute;
+  top: -50px;
+  right: -30px;
+  width: 180px;
+  height: 180px;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border-radius: 50%;
+  filter: blur(40px);
+  pointer-events: none;
+}
+
+.filter-wrapper {
+  padding: 0 24px;
+}
+
+.user-select {
+  min-width: 200px;
+
+  :deep(.n-base-selection) {
+    background: rgba(255, 255, 255, 0.9) !important;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.8) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+    transition: all 0.3s ease;
+  }
+
+  :deep(.n-base-selection:hover) {
+    border-color: rgba(102, 126, 234, 0.4) !important;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1) !important;
+  }
+}
+
+.date-picker {
+  :deep(.n-input) {
+    background: rgba(255, 255, 255, 0.9) !important;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.8) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+    transition: all 0.3s ease;
+  }
+
+  :deep(.n-input:hover) {
+    border-color: rgba(102, 126, 234, 0.4) !important;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1) !important;
+  }
+}
+
+.history-scrollbar {
+  height: 100%;
+}
+
+.history-spin {
+  padding: 16px;
+}
+
+.empty-state {
+  margin-top: 120px;
+  :deep(.n-empty__description) {
+    color: #a0aec0;
+  }
+}
+</style>

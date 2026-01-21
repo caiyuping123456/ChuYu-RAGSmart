@@ -80,8 +80,8 @@ async function handleDelete(tagId: string) {
 </script>
 
 <template>
-  <div class="flex-col-stretch gap-16px overflow-hidden <sm:overflow-auto">
-    <NCard title="组织标签" :bordered="false" size="small" class="sm:flex-1-hidden card-wrapper">
+  <div class="org-tag-container flex-col-stretch gap-16px overflow-hidden <sm:overflow-auto">
+    <NCard title="组织标签" :bordered="false" size="small" class="tag-card sm:flex-1-hidden">
       <template #header-extra>
         <TableHeaderOperation v-model:columns="columnChecks" :loading="loading" @add="handleAdd" @refresh="getData" />
       </template>
@@ -95,7 +95,7 @@ async function handleDelete(tagId: string) {
         :loading="loading"
         :pagination="false"
         :row-key="item => item.tagId"
-        class="sm:h-full"
+        class="data-table sm:h-full"
       />
       <OrgTagOperateDialog
         v-model:visible="dialogVisible"
@@ -108,4 +108,98 @@ async function handleDelete(tagId: string) {
   </div>
 </template>
 
-<style scoped></style>
+<style scoped lang="scss">
+.org-tag-container {
+  position: relative;
+  background: linear-gradient(135deg, #fafafa 0%, #f5fff0 50%, #fff8f0 100%);
+  border-radius: 24px;
+  padding: 24px;
+}
+
+/* 装饰性背景 */
+.org-tag-container::before {
+  content: '';
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  height: 120px;
+  background: linear-gradient(135deg, rgba(72, 187, 120, 0.1) 0%, rgba(56, 161, 105, 0.1) 100%);
+  border-radius: 50%;
+  filter: blur(40px);
+  pointer-events: none;
+}
+
+.org-tag-container::after {
+  content: '';
+  position: absolute;
+  bottom: -40px;
+  right: -40px;
+  width: 160px;
+  height: 160px;
+  background: linear-gradient(135deg, rgba(237, 137, 54, 0.1) 0%, rgba(221, 107, 32, 0.1) 100%);
+  border-radius: 50%;
+  filter: blur(35px);
+  pointer-events: none;
+}
+
+.tag-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(10px);
+  border-radius: 20px !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(72, 187, 120, 0.05) !important;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.tag-card:hover {
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(72, 187, 120, 0.1) !important;
+  transform: translateY(-2px);
+}
+
+.tag-card :deep(.n-card-header) {
+  background: linear-gradient(135deg, rgba(72, 187, 120, 0.04) 0%, rgba(56, 161, 105, 0.04) 100%) !important;
+  border-bottom: 1px solid rgba(72, 187, 120, 0.08) !important;
+  padding: 16px 20px !important;
+}
+
+.tag-card :deep(.n-card-header__title) {
+  color: #2d3748 !important;
+  font-weight: 700 !important;
+  font-size: 17px !important;
+  letter-spacing: 0.5px;
+}
+
+.data-table {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.data-table :deep(.n-data-table-wrapper) {
+  border-radius: 12px;
+}
+
+.data-table :deep(.n-data-table-th) {
+  background: linear-gradient(135deg, #fafafa 0%, #f0fff4 100%) !important;
+  color: #4a5568 !important;
+  font-weight: 600 !important;
+  border-bottom: 2px solid rgba(72, 187, 120, 0.1) !important;
+}
+
+.data-table :deep(.n-data-table-td) {
+  color: #4a5568 !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04) !important;
+  transition: all 0.2s ease;
+}
+
+.data-table :deep(.n-data-table-tr:hover .n-data-table-td) {
+  background: linear-gradient(135deg, rgba(72, 187, 120, 0.04) 0%, rgba(56, 161, 105, 0.04) 100%) !important;
+}
+</style>

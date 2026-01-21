@@ -112,36 +112,36 @@ async function handleSourceFileClick(fileName: string) {
 </script>
 
 <template>
-  <div class="mb-8 flex-col gap-2">
-    <div v-if="msg.role === 'user'" class="flex items-center gap-4">
-      <NAvatar class="bg-success">
-        <SvgIcon icon="ph:user-circle" class="text-icon-large color-white" />
+  <div class="message-container">
+    <div v-if="msg.role === 'user'" class="user-header">
+      <NAvatar class="user-avatar">
+        <SvgIcon icon="ph:user-circle" class="avatar-icon" />
       </NAvatar>
-      <div class="flex-col gap-1">
-        <NText class="text-4 font-bold">{{ authStore.userInfo.username }}</NText>
-        <NText class="text-3 color-gray-500">{{ formatDate(msg.timestamp) }}</NText>
+      <div class="user-info">
+        <NText class="username">{{ authStore.userInfo.username }}</NText>
+        <NText class="timestamp">{{ formatDate(msg.timestamp) }}</NText>
       </div>
     </div>
-    <div v-else class="flex items-center gap-4">
-      <NAvatar class="bg-primary">
-        <SystemLogo class="text-6 text-white" />
+    <div v-else class="assistant-header">
+      <NAvatar class="assistant-avatar">
+        <SystemLogo class="avatar-logo" />
       </NAvatar>
-      <div class="flex-col gap-1">
-        <NText class="text-4 font-bold">派聪明</NText>
-        <NText class="text-3 color-gray-500">{{ formatDate(msg.timestamp) }}</NText>
+      <div class="assistant-info">
+        <NText class="assistant-name">派聪明</NText>
+        <NText class="timestamp">{{ formatDate(msg.timestamp) }}</NText>
       </div>
     </div>
-    <NText v-if="msg.status === 'pending'">
-      <icon-eos-icons:three-dots-loading class="ml-12 mt-2 text-8" />
+    <NText v-if="msg.status === 'pending'" class="loading-indicator">
+      <icon-eos-icons:three-dots-loading class="loading-icon" />
     </NText>
-    <NText v-else-if="msg.status === 'error'" class="ml-12 mt-2 italic">服务器繁忙，请稍后再试</NText>
-    <div v-else-if="msg.role === 'assistant'" class="mt-2 pl-12" @click="handleContentClick">
+    <NText v-else-if="msg.status === 'error'" class="error-text">服务器繁忙，请稍后再试</NText>
+    <div v-else-if="msg.role === 'assistant'" class="assistant-content" @click="handleContentClick">
       <VueMarkdownIt :content="content" />
     </div>
-    <NText v-else-if="msg.role === 'user'" class="ml-12 mt-2 text-4">{{ content }}</NText>
-    <NDivider class="ml-12 w-[calc(100%-3rem)] mb-0! mt-2!" />
-    <div class="ml-12 flex gap-4">
-      <NButton quaternary @click="handleCopy(msg.content)">
+    <NText v-else-if="msg.role === 'user'" class="user-content">{{ content }}</NText>
+    <NDivider class="content-divider" />
+    <div class="action-buttons">
+      <NButton quaternary class="copy-btn" @click="handleCopy(msg.content)">
         <template #icon>
           <icon-mynaui:copy />
         </template>
@@ -151,19 +151,140 @@ async function handleSourceFileClick(fileName: string) {
 </template>
 
 <style scoped lang="scss">
+.message-container {
+  margin-bottom: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.user-header,
+.assistant-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.user-avatar {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25) !important;
+}
+
+.assistant-avatar {
+  background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 4px 12px rgba(245, 87, 108, 0.25) !important;
+}
+
+.avatar-icon {
+  font-size: 26px;
+  color: #ffffff;
+}
+
+.avatar-logo {
+  font-size: 26px;
+  color: #ffffff;
+}
+
+.user-info,
+.assistant-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.username,
+.assistant-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.timestamp {
+  font-size: 12px;
+  color: #a0aec0;
+}
+
+.loading-indicator {
+  margin-left: 48px;
+  margin-top: 8px;
+}
+
+.loading-icon {
+  font-size: 32px;
+  color: #f5576c;
+}
+
+.error-text {
+  margin-left: 48px;
+  margin-top: 8px;
+  font-style: italic;
+  color: #e53e3e;
+}
+
+.assistant-content {
+  margin-top: 8px;
+  margin-left: 48px;
+  color: #4a5568;
+  background: linear-gradient(135deg, rgba(245, 87, 108, 0.04) 0%, rgba(240, 147, 251, 0.04) 100%);
+  border-radius: 16px;
+  padding: 16px;
+  border: 1px solid rgba(245, 87, 108, 0.08);
+}
+
+.user-content {
+  margin-left: 48px;
+  margin-top: 8px;
+  font-size: 16px;
+  color: #2d3748;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.04) 0%, rgba(118, 75, 162, 0.04) 100%);
+  border-radius: 16px;
+  padding: 16px;
+  border: 1px solid rgba(102, 126, 234, 0.08);
+}
+
+.content-divider {
+  margin-left: 48px;
+  width: calc(100% - 48px);
+  margin-bottom: 0 !important;
+  margin-top: 8px !important;
+}
+
+:deep(.n-divider__line) {
+  background: linear-gradient(90deg, rgba(245, 87, 108, 0.1) 0%, rgba(240, 147, 251, 0.1) 100%) !important;
+}
+
+.action-buttons {
+  margin-left: 48px;
+  display: flex;
+  gap: 16px;
+}
+
+.copy-btn {
+  color: #a0aec0 !important;
+  border-radius: 10px !important;
+  transition: all 0.3s ease;
+}
+
+.copy-btn:hover {
+  color: #f5576c !important;
+  background: rgba(245, 87, 108, 0.05) !important;
+}
+
 :deep(.source-file-link) {
-  color: #1890ff;
+  color: #f5576c;
   cursor: pointer;
   text-decoration: underline;
   transition: color 0.2s;
 
   &:hover {
-    color: #40a9ff;
+    color: #667eea;
     text-decoration: none;
   }
 
   &:active {
-    color: #096dd9;
+    color: #764ba2;
   }
 }
 </style>

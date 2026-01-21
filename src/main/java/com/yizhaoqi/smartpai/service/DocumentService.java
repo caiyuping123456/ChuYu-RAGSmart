@@ -10,9 +10,12 @@ import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.RemoveObjectArgs;
 import io.minio.http.Method;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +24,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -49,6 +53,8 @@ public class DocumentService {
 
     @Autowired
     private UserRepository userRepository;
+    @Resource
+    private UserService userService;
 
     /**
      * 删除文档及其相关数据
@@ -159,7 +165,8 @@ public class DocumentService {
             // 获取用户有效的组织标签（包含层级关系）
             User user = userRepository.findByUsername(userId)
                 .orElseThrow(() -> new RuntimeException("用户不存在: " + userId));
-            
+            System.out.println("UserId："+userId);
+            System.out.println("getAccessibleFiles："+user);
             List<String> userEffectiveTags = orgTagCacheService.getUserEffectiveOrgTags(user.getUsername());
             logger.debug("用户有效组织标签: {}", userEffectiveTags);
             
@@ -167,15 +174,15 @@ public class DocumentService {
             List<FileUpload> files;
             if (userEffectiveTags.isEmpty()) {
                 // 如果用户没有任何组织标签，只返回自己的文件和公开文件
-                files = fileUploadRepository.findByUserIdOrIsPublicTrue(userId);
+                files = fileUploadRepository.findByUserIdOrIsPublicTrue(String.valueOf(user.getId()));
                 logger.debug("用户无组织标签，仅返回个人和公开文件");
             } else {
                 // 查询用户可访问的所有文件（考虑层级标签）
-                files = fileUploadRepository.findAccessibleFilesWithTags(userId, userEffectiveTags);
+                files = fileUploadRepository.findAccessibleFilesWithTags(String.valueOf(user.getId()), userEffectiveTags);
                 logger.debug("使用有效组织标签查询文件");
             }
-            
-            logger.info("成功获取用户可访问文件列表: userId={}, fileCount={}", userId, files.size());
+            //修改Bug
+            logger.info("成功获取用户可访问文件列表: userId={}, fileCount={}", user.getId(), files.size());
             return files;
         } catch (Exception e) {
             logger.error("获取用户可访问文件列表失败: userId={}", userId, e);
@@ -191,9 +198,11 @@ public class DocumentService {
      */
     public List<FileUpload> getUserUploadedFiles(String userId) {
         logger.info("获取用户上传的文件列表: userId={}", userId);
-        
+        User user = userService.getUserById(Long.valueOf(userId));
+        List<String> orgTagList = List.of(user.getOrgTags().split(","));
         try {
-            List<FileUpload> files = fileUploadRepository.findByUserId(userId);
+//            List<FileUpload> files = fileUploadRepository.findByUserId(userId);
+            List<FileUpload> files = fileUploadRepository.findAccessibleIsPulicFiles(userId,orgTagList);
             logger.info("成功获取用户上传的文件列表: userId={}, fileCount={}", userId, files.size());
             return files;
         } catch (Exception e) {

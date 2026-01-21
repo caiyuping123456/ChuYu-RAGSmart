@@ -53,12 +53,14 @@ public class DeepSeekClient {
      * @param history
      * @param onChunk
      * @param onError
+     * @param onComplete 完成回调
      */
-    public void streamResponse(String userMessage, 
+    public void streamResponse(String userMessage,
                              String context,
                              List<Map<String, String>> history,
                              Consumer<String> onChunk,
-                             Consumer<Throwable> onError) {
+                             Consumer<Throwable> onError,
+                             Runnable onComplete) {
 
         /**
          * sequenceDiagram
@@ -103,7 +105,7 @@ public class DeepSeekClient {
                 history != null ? history.size() : 0);
 
         // 直接调用 ChatUtils，它内部会处理 List<Map> 到 List<ChatMessage> 的转换
-        chatUtils.streamResponse(userMessage, context, history, onChunk, onError);
+        chatUtils.streamResponse(userMessage, context, history, onChunk, onError, onComplete);
     }
 
     /**

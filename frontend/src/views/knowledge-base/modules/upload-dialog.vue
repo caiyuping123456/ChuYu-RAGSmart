@@ -62,10 +62,10 @@ function onUpdate(option: unknown) {
     title="文件上传"
     :show-icon="false"
     :mask-closable="false"
-    class="w-500px!"
+    class="upload-modal"
     @positive-click="handleSubmit"
   >
-    <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100" mt-10>
+    <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100" class="upload-form">
       <NFormItem v-if="authStore.isAdmin" label="组织标签" path="orgTag">
         <OrgTagCascader v-model:value="model.orgTag" @change="onUpdate" />
       </NFormItem>
@@ -88,7 +88,7 @@ function onUpdate(option: unknown) {
           </NSpace>
         </NRadioGroup>
       </NFormItem>
-      <NFormItem label="标签描述" path="fileList">
+      <NFormItem label="上传文件" path="fileList">
         <NUpload
           v-model:file-list="model.fileList"
           :accept="uploadAccept"
@@ -96,17 +96,51 @@ function onUpdate(option: unknown) {
           :multiple="false"
           :default-upload="false"
         >
-          <NButton>上传文件</NButton>
+          <NButton class="upload-btn">上传文件</NButton>
         </NUpload>
       </NFormItem>
     </NForm>
     <template #action>
       <NSpace :size="16">
-        <NButton @click="close">取消</NButton>
-        <NButton type="primary" @click="handleSubmit">保存</NButton>
+        <NButton class="cancel-btn" @click="close">取消</NButton>
+        <NButton type="primary" class="save-btn" @click="handleSubmit">保存</NButton>
       </NSpace>
     </template>
   </NModal>
 </template>
 
-<style scoped></style>
+<style scoped lang="scss">
+.upload-modal {
+  width: 500px !important;
+
+  :deep(.n-dialog) {
+    background: #ffffff !important;
+    border-radius: 16px !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  :deep(.n-dialog__title) {
+    color: #2d3748 !important;
+    font-weight: 600 !important;
+  }
+}
+
+.upload-form {
+  margin-top: 20px;
+}
+
+.upload-btn {
+  border-radius: 8px !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.cancel-btn {
+  border-radius: 8px !important;
+}
+
+.save-btn {
+  background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%) !important;
+  border: none !important;
+  border-radius: 8px !important;
+}
+</style>

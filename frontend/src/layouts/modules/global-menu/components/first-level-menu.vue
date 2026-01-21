@@ -60,11 +60,10 @@ function toggleSiderCollapse() {
   <!-- define component: MixMenuItem -->
   <DefineMixMenuItem v-slot="{ label, icon, active, isMini }">
     <div
-      class="mx-4px mb-6px flex-col-center cursor-pointer rounded-8px bg-transparent px-4px py-8px transition-300 hover:bg-[rgb(0,0,0,0.08)]"
+      class="mix-menu-item mx-4px mb-6px flex-col-center cursor-pointer rounded-12px bg-transparent px-4px py-8px transition-300"
       :class="{
-        'text-primary selected-mix-menu': active,
-        'text-white:65 hover:text-white': inverted,
-        '!text-white !bg-primary': active && inverted
+        'active-menu': active,
+        'inverted-menu': inverted
       }"
     >
       <component :is="icon" :class="[isMini ? 'text-icon-small' : 'text-icon-large']" />
@@ -78,7 +77,7 @@ function toggleSiderCollapse() {
   </DefineMixMenuItem>
   <!-- define component end: MixMenuItem -->
 
-  <div class="h-full flex-col-stretch flex-1-hidden">
+  <div class="first-level-menu h-full flex-col-stretch flex-1-hidden">
     <slot></slot>
     <SimpleScrollbar>
       <MixMenuItem
@@ -95,6 +94,7 @@ function toggleSiderCollapse() {
       arrow-icon
       :collapsed="siderCollapse"
       :z-index="99"
+      class="menu-toggler"
       :class="{ 'text-white:88 !hover:text-white': inverted }"
       @click="toggleSiderCollapse"
     />
@@ -102,7 +102,49 @@ function toggleSiderCollapse() {
 </template>
 
 <style scoped>
+.first-level-menu {
+  position: relative;
+}
+
+.mix-menu-item {
+  background: transparent;
+}
+
+.mix-menu-item:hover {
+  background: linear-gradient(135deg, rgba(245, 87, 108, 0.08) 0%, rgba(240, 147, 251, 0.08) 100%);
+}
+
+.active-menu {
+  background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%) !important;
+  box-shadow: 0 4px 12px rgba(245, 87, 108, 0.3);
+  color: #ffffff !important;
+}
+
+.active-menu.inverted-menu {
+  background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%) !important;
+}
+
+.inverted-menu {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.inverted-menu:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .selected-mix-menu {
   background-color: v-bind(selectedBgColor);
+}
+
+.menu-toggler {
+  padding: 12px !important;
+  border-radius: 12px !important;
+  margin: 8px !important;
+  transition: all 0.3s ease !important;
+}
+
+.menu-toggler:hover {
+  background: linear-gradient(135deg, rgba(245, 87, 108, 0.06) 0%, rgba(240, 147, 251, 0.06) 100%) !important;
 }
 </style>

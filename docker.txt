@@ -1,0 +1,4 @@
+Mysql:
+docker run -d   --name mysql8   -e MYSQL_ROOT_PASSWORD=caiyuping2003   -v /root/docker/mysql:/var/lib/mysql   -p 3306:3306   --restart=always   mysql:8
+
+redis:
