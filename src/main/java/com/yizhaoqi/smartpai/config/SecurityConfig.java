@@ -8,8 +8,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import jakarta.annotation.PostConstruct;
 
 /**
  * 配置Spring Security的类
@@ -24,9 +27,18 @@ public class SecurityConfig {
 
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
-    
+
     @Autowired
     private OrgTagAuthorizationFilter orgTagAuthorizationFilter;
+
+    /**
+     * 配置SecurityContextHolder使用可继承的线程本地变量
+     * 这样在异步请求分发时，子线程可以继承父线程的安全上下文
+     */
+    @PostConstruct
+    public void init() {
+        SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_INHERITABLETHREADLOCAL);
+    }
 
     /**
      * 配置SecurityFilterChain bean的方法
@@ -50,9 +62,11 @@ public class SecurityConfig {
                             // 允许 WebSocket 连接
                             .requestMatchers("/chat/**", "/ws/**").permitAll()
                             // 允许登录注册接口
-                            .requestMatchers("/api/v1/users/register", "/api/v1/users/login").permitAll()
+                            .requestMatchers("/api/v1/users/register", "/api/v1/users/register/code", "/api/v1/users/login").permitAll()
                             // 允许测试接口
                             .requestMatchers("/api/v1/test/**").permitAll()
+                            // SSE 流式接口 - 异步分发不需要重新认证
+                            .requestMatchers("/api/v1/ai-agents/stream").permitAll()
                             // 文件上传和下载相关接口 - 普通用户和管理员都可访问
                             .requestMatchers("/api/v1/upload/**", "/api/v1/parse", "/api/v1/documents/download", "/api/v1/documents/preview").hasAnyRole("USER", "ADMIN")
                             // 对话历史相关接口 - 用户只能查看自己的历史，管理员可以查看所有
@@ -65,6 +79,8 @@ public class SecurityConfig {
                             .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                             // 用户组织标签管理接口
                             .requestMatchers("/api/v1/users/primary-org").hasAnyRole("USER", "ADMIN")
+                            // 智能体管理接口
+                            .requestMatchers("/api/v1/ai-agents/**").hasAnyRole("USER", "ADMIN")
                             // 其他请求需要认证
                             .anyRequest().authenticated())
                     // 配置会话管理策略

@@ -82,12 +82,15 @@ public class TokenCacheService {
         try {
             // 先检查是否在黑名单中
             if (isTokenBlacklisted(tokenId)) {
+                logger.warn("Token {} is blacklisted", tokenId);
                 return false;
             }
-            
+
             // 检查缓存中是否存在
             String key = TOKEN_PREFIX + tokenId;
-            return Boolean.TRUE.equals(redisTemplate.hasKey(key));
+            Boolean hasKey = redisTemplate.hasKey(key);
+            logger.info("Checking token validity for tokenId: {}, key: {}, exists in Redis: {}", tokenId, key, hasKey);
+            return Boolean.TRUE.equals(hasKey);
         } catch (Exception e) {
             logger.error("Failed to check token validity: {}", tokenId, e);
             return false;

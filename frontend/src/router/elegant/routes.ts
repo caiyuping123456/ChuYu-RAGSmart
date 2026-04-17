@@ -40,6 +40,17 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'ai-agent',
+    path: '/ai-agent',
+    component: 'layout.base$view.ai-agent',
+    meta: {
+      title: 'ai-agent',
+      i18nKey: 'route.ai-agent',
+      icon: 'solar:cpu-bolt-line-duotone',
+      order: 4
+    }
+  },
+  {
     name: 'chat',
     path: '/chat',
     component: 'layout.base$view.chat',
@@ -87,6 +98,17 @@ export const generatedRoutes: GeneratedRoute[] = [
     }
   },
   {
+    name: 'knowledge-graph',
+    path: '/knowledge-graph',
+    component: 'layout.base$view.knowledge-graph',
+    meta: {
+      title: 'knowledge-graph',
+      i18nKey: 'route.knowledge-graph',
+      icon: 'solar:graph-new-up-line-duotone',
+      order: 3.5
+    }
+  },
+  {
     name: 'login',
     path: '/login/:module(pwd-login|code-login|register|reset-pwd|bind-wechat)?',
     component: 'layout.blank$view.login',
@@ -107,7 +129,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.org-tag',
       icon: 'solar:tag-line-duotone',
       roles: ['ADMIN'],
-      order: 4
+      order: 5
     }
   },
   {
@@ -118,7 +140,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       title: 'personal-center',
       i18nKey: 'route.personal-center',
       icon: 'solar:people-nearby-line-duotone',
-      order: 6
+      order: 7
     }
   },
   {
@@ -130,7 +152,7 @@ export const generatedRoutes: GeneratedRoute[] = [
       i18nKey: 'route.user',
       icon: 'solar:user-line-duotone',
       roles: ['ADMIN'],
-      order: 5
+      order: 6
     }
   }
 ];

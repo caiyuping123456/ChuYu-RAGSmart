@@ -26,10 +26,10 @@ const model: FormModel = reactive({
 
 const rules = computed<Record<keyof FormModel, App.Global.FormRule[]>>(() => {
   // inside computed to make locale reactive, if not apply i18n, you can define it without computed
-  const { formRules } = useFormRules();
+  const { formRules, createRequiredRule } = useFormRules();
 
   return {
-    userName: formRules.userName,
+    userName: [createRequiredRule($t('form.userName.required'))],
     password: formRules.pwd
   };
 });

@@ -16,13 +16,14 @@ export function fetchLogin(username: string, password: string) {
     }
   });
 }
-export function fetchRegister(username: string, password: string) {
+export function fetchRegister(username: string, password: string,code: string) {
   return request({
     url: '/users/register',
     method: 'post',
     data: {
       username,
-      password
+      password,
+      code
     }
   });
 }
@@ -55,4 +56,19 @@ export function fetchRefreshToken(refreshToken: string) {
  */
 export function fetchCustomBackendError(code: string, msg: string) {
   return request({ url: '/auth/error', params: { code, msg } });
+}
+
+/**
+ * 获取邮箱验证码
+ * @param code
+ * @param msg
+ */
+export function fetchEmailCode(username : string) {
+  return request({
+    url: '/users/register/code',
+    method: 'post',
+    data: {
+      username
+    }
+  });
 }

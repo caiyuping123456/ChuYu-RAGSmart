@@ -165,6 +165,8 @@ const local: App.I18n.Schema = {
     chat: '聊天助手',
     'chat-history': '聊天记录',
     'knowledge-base': '知识库',
+    'knowledge-graph': '知识图谱',
+    'ai-agent': '智能体助手',
     'org-tag': '组织标签',
     user: '用户管理',
     'personal-center': '个人中心'

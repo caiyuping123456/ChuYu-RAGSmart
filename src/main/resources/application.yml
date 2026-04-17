@@ -29,6 +29,18 @@ spring:
       enabled: true
       max-file-size: 50MB # 单个文件的最大大小
       max-request-size: 100MB # 整个请求的最大大小
+  mail:
+    host: smtp.qq.com
+    port: 587
+    username: 761962102@qq.com
+    password: dkwenttuawfubcaj
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
   kafka:
     enabled: true  # 启用 Kafka
 #    bootstrap-servers: 127.0.0.1:9092 # Kafka 服务器地址
@@ -150,3 +162,10 @@ ai:
     temperature: 0.3
     max-tokens: 2000
     top-p: 0.9
+
+# 自定义python配置前缀
+python:
+  api:
+    base-url: http://127.0.0.1:8000  # Python 服务地址
+    timeout: 5000                    # 超时时间(毫秒)
+    api-key: "ishdieDFSHJWEONxbklAsdduhsSdjofnishei123sdweoqpwjdsd123131"       # 认证密钥

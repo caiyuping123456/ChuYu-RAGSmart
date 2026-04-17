@@ -200,4 +200,41 @@ declare namespace Api {
       fileSize: number;
     }
   }
+
+  namespace AiAgent {
+    interface Item {
+      id: number;
+      name: string;
+      description: string | null;
+      systemPrompt: string;
+      modelType: 'PRESET' | 'CUSTOM';
+      modelName: string;
+      customApiUrl: string | null;
+      customApiKey: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }
+
+    type List = Common.PaginatingQueryRecord<Item>;
+
+    interface Form {
+      name: string;
+      description: string;
+      systemPrompt: string;
+      modelType: 'PRESET' | 'CUSTOM';
+      modelName: string;
+      customApiUrl: string;
+      customApiKey: string;
+    }
+
+    interface Stream {
+      agentId: number,
+      userId: number,
+      question: string
+    }
+
+
+  }
+
+
 }

@@ -6,6 +6,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,6 +22,7 @@ import java.io.IOException;
  * 如果 Token 有效，则将用户信息和权限设置到 Spring Security 的上下文中，后续的请求可以基于用户角色进行授权。
  */
 @Component
+@Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Autowired
@@ -42,12 +44,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
              */
             // 从请求头中提取 JWT Token
             String token = extractToken(request);
+            String requestURI = request.getRequestURI();
+            log.info("Processing request: {} with token: {}", requestURI, token != null ? "present" : "null");
+
             if (token != null) {
                 String newToken = null;
                 String username = null;
-                
+
                 // 首先检查token是否有效
-                if (jwtUtils.validateToken(token)) {
+                boolean isValid = jwtUtils.validateToken(token);
+                log.info("Token validation result: {}", isValid);
+
+                if (isValid) {
                     // Token有效，检查是否需要预刷新
                     if (jwtUtils.shouldRefreshToken(token)) {
                         newToken = jwtUtils.refreshToken(token);
@@ -56,28 +64,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         }
                     }
                     username = jwtUtils.extractUsernameFromToken(token);
+                    log.info("Extracted username from valid token: {}", username);
                 } else {
                     // Token无效/过期，检查是否在宽限期内可以刷新
+                    logger.info("Token invalid, checking if can refresh expired token");
                     if (jwtUtils.canRefreshExpiredToken(token)) {
                         newToken = jwtUtils.refreshToken(token);
                         if (newToken != null) {
                             logger.info("Expired token refreshed within grace period");
                             username = jwtUtils.extractUsernameFromToken(newToken);
                         }
+                    } else {
+                        logger.warn("Token cannot be refreshed, validation failed");
                     }
                 }
-                
+
                 // 如果有新token，通过响应头返回给前端
                 if (newToken != null) {
                     response.setHeader("New-Token", newToken);
                 }
-                
+
                 // 设置用户认证信息
                 if (username != null && !username.isEmpty()) {
                     /**
                      * 加载用户的信息
                      */
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                    log.info("Loaded user details: {}, authorities: {}", username, userDetails.getAuthorities());
                     /**
                      *  为用户设置通行证
                      */
@@ -91,12 +104,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                      * 放到Spring中
                      */
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                    log.info("Authentication set successfully for user: {}", username);
+                } else {
+                    logger.warn("Username is null or empty, authentication not set");
                 }
+            } else {
+                logger.info("No token found in request headers");
             }
             filterChain.doFilter(request, response); // 继续执行过滤链
         } catch (Exception e) {
             // 记录错误日志
-            logger.error("Cannot set user authentication: {}", e);
+            log.error("Cannot set user authentication: {}", e.getMessage(), e);
         }
     }
 

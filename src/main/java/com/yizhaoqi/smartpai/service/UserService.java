@@ -6,15 +6,22 @@ import com.yizhaoqi.smartpai.model.User;
 import com.yizhaoqi.smartpai.repository.OrganizationTagRepository;
 import com.yizhaoqi.smartpai.repository.UserRepository;
 import com.yizhaoqi.smartpai.utils.PasswordUtil;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.StringHttpMessageConverter;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +50,7 @@ public class UserService {
     private static final String PRIVATE_TAG_PREFIX = "PRIVATE_";
     private static final String PRIVATE_ORG_NAME_SUFFIX = "的私人空间";
     private static final String PRIVATE_ORG_DESCRIPTION = "用户的私人组织标签，仅用户本人可访问";
+    private static final Logger emailLogger = LoggerFactory.getLogger(UserService.class);
 
     @Autowired
     private UserRepository userRepository;
@@ -52,6 +60,17 @@ public class UserService {
     
     @Autowired
     private OrgTagCacheService orgTagCacheService;
+
+    @Autowired
+    private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
+    private JavaMailSender mailSender;
+
+    @Value("${spring.mail.username}")
+    private String fromEmail;
+
+
 
     /**
      * 注册新用户。
@@ -123,6 +142,77 @@ public class UserService {
         orgTagCacheService.cacheUserOrgTags(username, List.of(privateTagId));
         orgTagCacheService.cacheUserPrimaryOrg(username, privateTagId);
         
+        logger.info("User registered successfully with private organization tag: {}", username);
+    }
+
+    @Transactional
+    public void registerUserCode(String username, String password,String code) {
+        /**
+         * 检查数据库中是否已存在该用户名，保证用户名的唯一性
+         */
+        if (userRepository.findByUsername(username).isPresent()) {
+            /**
+             * 若用户名已存在，抛出自定义异常，状态码为 400 Bad Request
+             *  同样进行异常返回
+             */
+            throw new CustomException("Username already exists", HttpStatus.BAD_REQUEST);
+        }
+        String Code = stringRedisTemplate.opsForValue().get("email:code:" + username);
+        if(Code.isEmpty()&&!Code.equals(code)){
+            throw new CustomException("code not true", HttpStatus.BAD_REQUEST);
+        }
+
+        // 确保默认组织标签存在（系统内部使用）
+        /**
+         * 这个东西就是类似于群的东西
+         * 只有相同标签的用户才能进行文件的参考和查阅
+         * 这里是保证开始必须有一个为默认的标签
+         */
+        ensureDefaultOrgTagExists();
+
+        /**
+         * 下面开始用户的注册工作
+         * 设置用户名，设置密码
+         * 设置用户属性为普通用户
+         * 同时对密码进行加密
+         */
+        User user = new User();
+        user.setUsername(username);
+        // 对密码进行加密处理并设置到 User 对象中
+        user.setPassword(PasswordUtil.encode(password));
+        // 设置用户角色为普通用户
+        user.setRole(User.Role.USER);
+
+        // 保存用户以生成ID
+        userRepository.save(user);
+
+        /**
+         * 注意，这里将用户的标签设置为用户的名字
+         */
+        // 创建用户的私人组织标签
+        String privateTagId = PRIVATE_TAG_PREFIX + username;
+        createPrivateOrgTag(privateTagId, username, user);
+
+        /**
+         * 将标志和主标志进行设置，都是同一个，就是用户的名字，
+         */
+        // 只分配私人组织标签
+        user.setOrgTags(privateTagId);
+
+        //TODO 这里还有测试一下
+        // 设置私人组织标签为主组织标签
+        user.setPrimaryOrg(privateTagId);
+
+        userRepository.save(user);
+
+        /**
+         * 这里是将用户的标志进行redis存储
+         * 分为主要标志和全部标志
+         */
+        // 缓存组织标签信息
+        orgTagCacheService.cacheUserOrgTags(username, List.of(privateTagId));
+        orgTagCacheService.cacheUserPrimaryOrg(username, privateTagId);
+
         logger.info("User registered successfully with private organization tag: {}", username);
     }
     
@@ -889,6 +979,88 @@ public class UserService {
     public User getUserById(Long userId) {
         return userRepository.findById(userId)
                 .orElse(null); // 用户不存在时返回 null
+    }
+
+    /**
+     * 根据用户名字获取用户的ID
+     * @param inputUsername
+     * @return
+     */
+    public Long getUserIdByUserName(String inputUsername) {
+        return userRepository.getInfoByName(inputUsername)
+                .map(User::getId) // 提取 username 字段
+                .orElse(null);          // 不存在则返回 null
+    }
+
+
+    /**
+     * 邮箱发送验证码
+     * @param userName
+     */
+    public void postEmailCode(String userName) {
+        // 验证账号是不是注册了
+        Long validatedUserId = getUserIdByUserName(userName);
+        if(validatedUserId != null) {
+            throw new CustomException("该邮箱已注册，如需帮助请联系管理员", HttpStatus.BAD_REQUEST);
+        }
+        // 生成6位随机验证码
+        String code = String.valueOf((int) ((Math.random() * 9 + 1) * 100000));
+
+        // 存入Redis，有效期5分钟
+        stringRedisTemplate.opsForValue().set("email:code:" + userName, code, 5, java.util.concurrent.TimeUnit.MINUTES);
+
+        // 发送邮件
+        try {
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+            helper.setFrom(fromEmail);
+            helper.setTo(userName);
+            helper.setSubject("ChuYu智能系统 - 注册验证码");
+
+            // 漂亮的 HTML 内容
+            String htmlContent = "<html>" +
+                    "<body>" +
+                    "<h2 style='color:#333;'>欢迎注册 ChuYu 智能系统</h2>" +
+                    "<p>您的验证码为：</p>" +
+                    "<h1 style='color:#1890ff; letter-spacing: 5px; text-align:center;'>" + code + "</h1>" +
+                    "<p>该验证码 <b>5 分钟内有效</b>，请勿泄露。</p>" +
+                    "<hr style='border: 1px solid #eee;'>" +
+                    "<p style='color:gray; font-size: 12px;'>如非本人操作，请忽略此邮件。</p>" +
+                    "</body>" +
+                    "</html>";
+
+            helper.setText(htmlContent, true);
+            mailSender.send(mimeMessage);
+            emailLogger.info("验证码已发送至: {}", userName);
+        } catch (Exception e) {
+            e.printStackTrace(); // 打印详细错误堆栈，方便调试
+            emailLogger.error("邮件发送失败: {}", e.getMessage());
+            throw new CustomException("邮件发送失败，请稍后重试", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    void testPostMail(String userName) throws MessagingException {
+        MimeMessage mimeMessage = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+        helper.setFrom("761962102@qq.com");
+        helper.setTo(userName);
+        helper.setSubject("ChuYu智能系统 - 注册验证码");
+
+        // 漂亮的 HTML 内容
+        String htmlContent = "<html>" +
+                "<body>" +
+                "<h2 style='color:#333;'>欢迎注册 ChuYu 智能系统</h2>" +
+                "<p>您的验证码为：</p>" +
+                "<h1 style='color:#1890ff; letter-spacing: 5px; text-align:center;'>" + "123456" + "</h1>" +
+                "<p>该验证码 <b>5 分钟内有效</b>，请勿泄露。</p>" +
+                "<hr style='border: 1px solid #eee;'>" +
+                "<p style='color:gray; font-size: 12px;'>如非本人操作，请忽略此邮件。</p>" +
+                "</body>" +
+                "</html>";
+
+        helper.setText(htmlContent, true);
+
+        mailSender.send(mimeMessage);
     }
 }
 

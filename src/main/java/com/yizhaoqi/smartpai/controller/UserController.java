@@ -6,6 +6,7 @@ import com.yizhaoqi.smartpai.repository.UserRepository;
 import com.yizhaoqi.smartpai.service.UserService;
 import com.yizhaoqi.smartpai.utils.JwtUtils;
 import com.yizhaoqi.smartpai.utils.LogUtils;
+import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,7 +34,7 @@ public class UserController {
     // 用户注册接口
     // 接收用户请求体中的用户名和密码，并调用用户服务进行注册
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody UserRequest request) {
+    public ResponseEntity<?> register(@RequestBody UserRegisty request) {
         /**
          * 这是一个性能监视器
          * 就是计算操作时间的东西
@@ -46,8 +47,8 @@ public class UserController {
              * 进行用户名和密码的判定为空处理
              * 如何前端传来的用户名和密码为空就进行数据提示返回
              */
-            if (request.username() == null || request.username().isEmpty() ||
-                    request.password() == null || request.password().isEmpty()) {
+            if (request.getUsername() == null || request.getPassword().isEmpty() ||
+                    request.getUsername() == null || request.getPassword().isEmpty()) {
                 /**
                  * 这个是记录操作的步骤
                  */
@@ -61,11 +62,11 @@ public class UserController {
             /**
              * 如果前端传入的用户名和密码不是空，进行用户注册，调用service方法
              */
-            userService.registerUser(request.username(), request.password());
+            userService.registerUserCode(request.getUsername(), request.getPassword(), request.getCode());
             /**
              * 同样，这里的server方法执行成功了，记录一下方法调用成功
              */
-            LogUtils.logUserOperation(request.username(), "REGISTER", "user_creation", "SUCCESS");
+            LogUtils.logUserOperation(request.getUsername(), "REGISTER", "user_creation", "SUCCESS");
             monitor.end("注册成功");
 
             /**
@@ -79,15 +80,35 @@ public class UserController {
             /**
              * 这个是用户名已经存在，抛出异常
              */
-            LogUtils.logBusinessError("USER_REGISTER", request.username(), "用户注册失败: %s", e, e.getMessage());
+            LogUtils.logBusinessError("USER_REGISTER", request.getUsername(), "用户注册失败: %s", e, e.getMessage());
             monitor.end("注册失败: " + e.getMessage());
             return ResponseEntity.status(e.getStatus()).body(Map.of("code", e.getStatus().value(), "message", e.getMessage()));
         } catch (Exception e) {
             /**
              * 这个是未知异常
              */
-            LogUtils.logBusinessError("USER_REGISTER", request.username(), "用户注册异常: %s", e, e.getMessage());
+            LogUtils.logBusinessError("USER_REGISTER", request.getUsername(), "用户注册异常: %s", e, e.getMessage());
             monitor.end("注册异常: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("code", 500, "message", "Internal server error"));
+        }
+    }
+
+    @PostMapping("/register/code")
+    public ResponseEntity<?> getCode(@RequestBody Map<String, String> body) {
+        LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("GET_EMAIL_CODE");
+        String userName = body.get("username");
+        try {
+            userService.postEmailCode(userName);
+            LogUtils.logUserOperation(userName, "GET_EMAIL_CODE", "email_code", "SUCCESS");
+            monitor.end("获取验证码成功");
+            return ResponseEntity.ok(Map.of("code", 200, "message", "post emailCode successful", "data", true));
+        } catch (CustomException e) {
+            LogUtils.logBusinessError("GET_EMAIL_CODE", userName, "获取验证码失败: %s", e, e.getMessage());
+            monitor.end("获取验证码失败: " + e.getMessage());
+            return ResponseEntity.status(e.getStatus()).body(Map.of("code", e.getStatus().value(), "message", e.getMessage()));
+        } catch (Exception e) {
+            LogUtils.logBusinessError("GET_EMAIL_CODE", userName, "获取验证码异常: %s", e, e.getMessage());
+            monitor.end("获取验证码异常: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("code", 500, "message", "Internal server error"));
         }
     }
@@ -426,3 +447,10 @@ record UserRequest(String username, String password) {}
 
 // 主组织标签请求记录类
 record PrimaryOrgRequest(String primaryOrg) {}
+
+@Data
+class UserRegisty{
+    private String username;
+    private String password;
+    private String code;
+}

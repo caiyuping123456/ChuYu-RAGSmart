@@ -165,6 +165,8 @@ const local: App.I18n.Schema = {
     chat: 'Chat Assistant',
     'chat-history': 'Chat History',
     'knowledge-base': 'Knowledge Base',
+    'knowledge-graph': 'Knowledge Graph',
+    'ai-agent': 'AI Agent',
     'org-tag': 'Organization Tag',
     user: 'User Management',
     'personal-center': 'Personal Center'
