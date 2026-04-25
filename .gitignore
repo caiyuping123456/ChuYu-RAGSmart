@@ -75,4 +75,4 @@ frontend/src/typings/components.d.ts
 frontend/src/typings/auto-imports.d.ts
 frontend/public/languages
 frontend/public/themes
-src/main/resources/application.yml~
+src/main/resources/application*.yml
