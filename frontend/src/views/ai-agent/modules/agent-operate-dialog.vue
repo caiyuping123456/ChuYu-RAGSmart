@@ -38,6 +38,13 @@ const presetModels = [
   { label: 'Kimi-K2.6', value: 'Pro/moonshotai/Kimi-K2.6' }
 ];
 
+// API 格式/提供商选项
+const providerOptions = [
+  { label: 'OpenAI 兼容格式', value: 'openai' },
+  { label: 'Anthropic (Claude)', value: 'anthropic' },
+  { label: 'Google (Gemini)', value: 'google' }
+];
+
 function createDefaultModel(): Api.AiAgent.Form {
   return {
     name: '',
@@ -45,6 +52,7 @@ function createDefaultModel(): Api.AiAgent.Form {
     systemPrompt: '',
     modelType: 'PRESET',
     modelName: 'deepseek-ai/DeepSeek-V3.2',
+    provider: 'openai',
     customApiUrl: '',
     customApiKey: ''
   };
@@ -71,6 +79,11 @@ const rules = computed(() => ({
     required: model.value.modelType === 'CUSTOM',
     message: '请输入 API Key',
     trigger: 'blur'
+  },
+  provider: {
+    required: model.value.modelType === 'CUSTOM',
+    message: '请选择 API 格式',
+    trigger: 'change'
   }
 }));
 
@@ -83,6 +96,7 @@ watch(visible, () => {
         systemPrompt: props.rowData.systemPrompt,
         modelType: props.rowData.modelType,
         modelName: props.rowData.modelName,
+        provider: props.rowData.provider || 'openai',
         customApiUrl: props.rowData.customApiUrl || '',
         customApiKey: props.rowData.customApiKey || ''
       };
@@ -134,10 +148,13 @@ async function handleSubmit() {
           <NRadioButton value="CUSTOM">自定义模型</NRadioButton>
         </NRadioGroup>
       </NFormItem>
+      <NFormItem v-if="model.modelType === 'CUSTOM'" label="API 格式" path="provider">
+        <NSelect v-model:value="model.provider" :options="providerOptions" placeholder="请选择 API 格式" />
+      </NFormItem>
       <NFormItem v-if="model.modelType === 'PRESET'" label="选择模型" path="modelName">
         <NSelect v-model:value="model.modelName" :options="presetModels" placeholder="请选择模型" />
       </NFormItem>
-      <NFormItem v-else label="模型名称" path="modelName">
+      <NFormItem v-if="model.modelType === 'CUSTOM'" label="模型名称" path="modelName">
         <NInput v-model:value="model.modelName" placeholder="例如：my-custom-model" />
       </NFormItem>
       <NFormItem v-if="model.modelType === 'CUSTOM'" label="API URL" path="customApiUrl">

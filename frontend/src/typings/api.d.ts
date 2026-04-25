@@ -209,6 +209,7 @@ declare namespace Api {
       systemPrompt: string;
       modelType: 'PRESET' | 'CUSTOM';
       modelName: string;
+      provider: string;
       customApiUrl: string | null;
       customApiKey: string | null;
       createdAt: string;
@@ -223,6 +224,7 @@ declare namespace Api {
       systemPrompt: string;
       modelType: 'PRESET' | 'CUSTOM';
       modelName: string;
+      provider: string;
       customApiUrl: string;
       customApiKey: string;
     }

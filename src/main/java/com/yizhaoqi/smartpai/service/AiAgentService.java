@@ -1,18 +1,28 @@
 package com.yizhaoqi.smartpai.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yizhaoqi.smartpai.exception.CustomException;
 import com.yizhaoqi.smartpai.model.AiAgent;
 import com.yizhaoqi.smartpai.repository.AiAgentRepository;
+import com.yizhaoqi.smartpai.utils.RedisUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class AiAgentService {
 
     private final AiAgentRepository aiAgentRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /** Redis key 格式：{agentId}:{userId}:  （与 Python 端一致） */
+    private String buildRedisKey(Long agentId, Long userId) {
+        return agentId + ":" + userId + ":";
+    }
 
     public AiAgentService(AiAgentRepository aiAgentRepository) {
         this.aiAgentRepository = aiAgentRepository;
@@ -27,9 +37,47 @@ public class AiAgentService {
                 .orElseThrow(() -> new CustomException("Agent not found", HttpStatus.NOT_FOUND));
     }
 
+    /**
+     * 构建 Python 端需要的缓存数据
+     */
+    private Map<String, String> buildPythonCacheData(AiAgent agent) {
+        Map<String, String> cacheData = new LinkedHashMap<>();
+        cacheData.put("custom_api_url", agent.getCustomApiUrl());
+        cacheData.put("custom_api_key", agent.getCustomApiKey());
+        cacheData.put("model_name", agent.getModelName());
+        cacheData.put("system_prompt", agent.getSystemPrompt());
+        cacheData.put("model_type", agent.getModelType());
+        cacheData.put("provider", agent.getProvider());
+        return cacheData;
+    }
+
+    /**
+     * 写入 Redis 缓存（JSON 字符串，与 Python 格式一致）
+     */
+    private void cacheAgent(AiAgent agent) {
+        try {
+            String key = buildRedisKey(agent.getId(), agent.getUserId());
+            String json = objectMapper.writeValueAsString(buildPythonCacheData(agent));
+            RedisUtils.setJson(key, json);
+        } catch (Exception e) {
+            // 缓存失败不影响业务
+            throw new RuntimeException("失败，请联系管理");
+        }
+    }
+
+    /**
+     * 删除 Redis 缓存
+     */
+    private void evictAgent(AiAgent agent) {
+        String key = buildRedisKey(agent.getId(), agent.getUserId());
+        RedisUtils.deleteRedisOfString(key);
+    }
+
     @Transactional
     public AiAgent create(AiAgent agent) {
-        return aiAgentRepository.save(agent);
+        AiAgent result = aiAgentRepository.save(agent);
+        cacheAgent(result);
+        return result;
     }
 
     @Transactional
@@ -45,7 +93,10 @@ public class AiAgentService {
         existing.setModelName(agent.getModelName());
         existing.setCustomApiUrl(agent.getCustomApiUrl());
         existing.setCustomApiKey(agent.getCustomApiKey());
-        return aiAgentRepository.save(existing);
+        existing.setProvider(agent.getProvider());
+        AiAgent result = aiAgentRepository.save(existing);
+        cacheAgent(result);
+        return result;
     }
 
     @Transactional
@@ -55,5 +106,6 @@ public class AiAgentService {
             throw new CustomException("No permission to delete this agent", HttpStatus.FORBIDDEN);
         }
         aiAgentRepository.delete(existing);
+        evictAgent(existing);
     }
 }

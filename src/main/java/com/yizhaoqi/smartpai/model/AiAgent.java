@@ -28,6 +28,9 @@ public class AiAgent {
     @Column(name = "model_type", nullable = false, length = 10)
     private String modelType;
 
+    @Column(length = 20)
+    private String provider;
+
     @Column(name = "model_name", nullable = false)
     private String modelName;
 
