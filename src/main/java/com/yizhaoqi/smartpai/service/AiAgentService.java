@@ -3,6 +3,8 @@ package com.yizhaoqi.smartpai.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yizhaoqi.smartpai.exception.CustomException;
 import com.yizhaoqi.smartpai.model.AiAgent;
+import com.yizhaoqi.smartpai.model.AiAgentMcp;
+import com.yizhaoqi.smartpai.repository.AiAgentMcpRepository;
 import com.yizhaoqi.smartpai.repository.AiAgentRepository;
 import com.yizhaoqi.smartpai.utils.RedisUtils;
 import org.springframework.http.HttpStatus;
@@ -17,6 +19,7 @@ import java.util.Map;
 public class AiAgentService {
 
     private final AiAgentRepository aiAgentRepository;
+    private final AiAgentMcpRepository aiAgentMcpRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /** Redis key 格式：{agentId}:{userId}:  （与 Python 端一致） */
@@ -24,17 +27,41 @@ public class AiAgentService {
         return agentId + ":" + userId + ":";
     }
 
-    public AiAgentService(AiAgentRepository aiAgentRepository) {
+    public AiAgentService(AiAgentRepository aiAgentRepository, AiAgentMcpRepository aiAgentMcpRepository) {
         this.aiAgentRepository = aiAgentRepository;
+        this.aiAgentMcpRepository = aiAgentMcpRepository;
     }
 
     public List<AiAgent> listByUserId(Long userId) {
-        return aiAgentRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        List<AiAgent> agents = aiAgentRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        // MCP 列表不做聚合返回，避免列表接口变重；需要时可通过 detail 获取
+        return agents;
     }
 
     public AiAgent getById(Long id) {
         return aiAgentRepository.findById(id)
                 .orElseThrow(() -> new CustomException("Agent not found", HttpStatus.NOT_FOUND));
+    }
+
+    public List<AiAgentMcp> getMcpServices(Long agentId, Long userId) {
+        return listMcp(agentId, userId);
+    }
+
+    private List<AiAgentMcp> listMcp(Long agentId, Long userId) {
+        return aiAgentMcpRepository.findByAgentIdAndUserIdOrderByIdAsc(agentId, userId);
+    }
+
+    private void replaceMcp(Long agentId, Long userId, List<AiAgentMcp> mcpServices) {
+        aiAgentMcpRepository.deleteByAgentIdAndUserId(agentId, userId);
+        if (mcpServices == null || mcpServices.isEmpty()) {
+            return;
+        }
+        for (AiAgentMcp mcp : mcpServices) {
+            mcp.setId(null);
+            mcp.setAgentId(agentId);
+            mcp.setUserId(userId);
+            aiAgentMcpRepository.save(mcp);
+        }
     }
 
     /**
@@ -76,7 +103,10 @@ public class AiAgentService {
     @Transactional
     public AiAgent create(AiAgent agent) {
         AiAgent result = aiAgentRepository.save(agent);
+        replaceMcp(result.getId(), result.getUserId(), agent.getMcpServices());
         cacheAgent(result);
+        // 返回时带上 MCP 列表
+        result.setMcpServices(listMcp(result.getId(), result.getUserId()));
         return result;
     }
 
@@ -95,7 +125,11 @@ public class AiAgentService {
         existing.setCustomApiKey(agent.getCustomApiKey());
         existing.setProvider(agent.getProvider());
         AiAgent result = aiAgentRepository.save(existing);
+
+        replaceMcp(result.getId(), result.getUserId(), agent.getMcpServices());
+
         cacheAgent(result);
+        result.setMcpServices(listMcp(result.getId(), result.getUserId()));
         return result;
     }
 
@@ -106,6 +140,7 @@ public class AiAgentService {
             throw new CustomException("No permission to delete this agent", HttpStatus.FORBIDDEN);
         }
         aiAgentRepository.delete(existing);
+        aiAgentMcpRepository.deleteByAgentIdAndUserId(id, userId);
         evictAgent(existing);
     }
 }

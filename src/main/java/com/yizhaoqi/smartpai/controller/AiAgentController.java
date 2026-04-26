@@ -53,6 +53,8 @@ public class AiAgentController {
         if (!agent.getUserId().equals(userId)) {
             throw new CustomException("No permission", HttpStatus.FORBIDDEN);
         }
+        // 带上 MCP 配置返回
+        agent.setMcpServices(aiAgentService.getMcpServices(id, userId));
         return ResponseEntity.ok(Map.of("code", 200, "data", agent));
     }
 

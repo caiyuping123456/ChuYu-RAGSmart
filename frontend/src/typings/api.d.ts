@@ -202,6 +202,15 @@ declare namespace Api {
   }
 
   namespace AiAgent {
+    interface McpService {
+      id?: number;
+      name: string;
+      type: 'local' | 'remote';
+      endpoint: string;
+      apiKey?: string;
+      enabled: boolean;
+    }
+
     interface Item {
       id: number;
       name: string;
@@ -212,6 +221,7 @@ declare namespace Api {
       provider: string;
       customApiUrl: string | null;
       customApiKey: string | null;
+      mcpServices?: McpService[];
       createdAt: string;
       updatedAt: string;
     }
@@ -227,6 +237,7 @@ declare namespace Api {
       provider: string;
       customApiUrl: string;
       customApiKey: string;
+      mcpServices?: McpService[];
     }
 
     interface Stream {

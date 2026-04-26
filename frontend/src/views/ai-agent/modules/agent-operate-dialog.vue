@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { fetchCreateAgent, fetchUpdateAgent } from '@/service/api/agent';
+import { fetchAgentDetail, fetchCreateAgent, fetchUpdateAgent } from '@/service/api/agent';
 
 defineOptions({
   name: 'AgentOperateDialog'
@@ -45,6 +45,11 @@ const providerOptions = [
   { label: 'Google (Gemini)', value: 'google' }
 ];
 
+const mcpTypeOptions = [
+  { label: '本地 MCP', value: 'local' },
+  { label: '远程 MCP', value: 'remote' }
+];
+
 function createDefaultModel(): Api.AiAgent.Form {
   return {
     name: '',
@@ -54,7 +59,8 @@ function createDefaultModel(): Api.AiAgent.Form {
     modelName: 'deepseek-ai/DeepSeek-V3.2',
     provider: 'openai',
     customApiUrl: '',
-    customApiKey: ''
+    customApiKey: '',
+    mcpServices: []
   };
 }
 
@@ -87,18 +93,22 @@ const rules = computed(() => ({
   }
 }));
 
-watch(visible, () => {
+watch(visible, async () => {
   if (visible.value) {
     if (props.operateType === 'edit' && props.rowData) {
+      const { data } = await fetchAgentDetail(props.rowData.id);
+      const detail = data || props.rowData;
+
       model.value = {
-        name: props.rowData.name,
-        description: props.rowData.description || '',
-        systemPrompt: props.rowData.systemPrompt,
-        modelType: props.rowData.modelType,
-        modelName: props.rowData.modelName,
-        provider: props.rowData.provider || 'openai',
-        customApiUrl: props.rowData.customApiUrl || '',
-        customApiKey: props.rowData.customApiKey || ''
+        name: detail.name,
+        description: detail.description || '',
+        systemPrompt: detail.systemPrompt,
+        modelType: detail.modelType,
+        modelName: detail.modelName,
+        provider: detail.provider || 'openai',
+        customApiUrl: detail.customApiUrl || '',
+        customApiKey: detail.customApiKey || '',
+        mcpServices: detail.mcpServices ? [...detail.mcpServices] : []
       };
     } else {
       model.value = createDefaultModel();
@@ -109,6 +119,21 @@ watch(visible, () => {
 
 function close() {
   visible.value = false;
+}
+
+function addMcpService() {
+  if (!model.value.mcpServices) model.value.mcpServices = [];
+  model.value.mcpServices.push({
+    name: '',
+    type: 'remote',
+    endpoint: '',
+    apiKey: '',
+    enabled: true
+  });
+}
+
+function removeMcpService(index: number) {
+  model.value.mcpServices?.splice(index, 1);
 }
 
 async function handleSubmit() {
@@ -131,7 +156,7 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <NModal v-model:show="visible" preset="dialog" :title="title" :show-icon="false" :mask-closable="false" style="width: 600px;">
+  <NModal v-model:show="visible" preset="dialog" :title="title" :show-icon="false" :mask-closable="false" style="width: 760px;">
     <NForm ref="formRef" :model="model" :rules="rules" label-placement="left" :label-width="100">
       <NFormItem label="智能体名称" path="name">
         <NInput v-model:value="model.name" placeholder="请输入智能体名称" />
@@ -163,6 +188,42 @@ async function handleSubmit() {
       <NFormItem v-if="model.modelType === 'CUSTOM'" label="API Key" path="customApiKey">
         <NInput v-model:value="model.customApiKey" type="password" show-password-on="click" placeholder="请输入 API Key" />
       </NFormItem>
+
+      <NDivider style="margin: 12px 0;">MCP 服务</NDivider>
+
+      <NSpace vertical :size="12">
+        <NSpace justify="space-between" align="center">
+          <div style="color: var(--n-text-color-3); font-size: 12px;">每个智能体可配置多个 MCP 服务（仅该智能体可见）。</div>
+          <NButton size="small" @click="addMcpService">添加 MCP</NButton>
+        </NSpace>
+
+        <NCard v-for="(mcp, idx) in model.mcpServices" :key="idx" size="small" embedded>
+          <NSpace vertical :size="10">
+            <NSpace :size="12" align="center" justify="space-between">
+              <div style="font-weight: 600;">MCP #{{ idx + 1 }}</div>
+              <NSpace :size="8" align="center">
+                <NCheckbox v-model:checked="mcp.enabled">启用</NCheckbox>
+                <NButton size="tiny" tertiary type="error" @click="removeMcpService(idx)">删除</NButton>
+              </NSpace>
+            </NSpace>
+
+            <NGrid :cols="24" :x-gap="12">
+              <NFormItemGi :span="12" label="名称">
+                <NInput v-model:value="mcp.name" placeholder="例如：本地文件系统 MCP" />
+              </NFormItemGi>
+              <NFormItemGi :span="12" label="类型">
+                <NSelect v-model:value="mcp.type" :options="mcpTypeOptions" />
+              </NFormItemGi>
+              <NFormItemGi :span="16" label="Endpoint">
+                <NInput v-model:value="mcp.endpoint" placeholder="例如：http://127.0.0.1:8000 或 https://mcp.example.com" />
+              </NFormItemGi>
+              <NFormItemGi :span="8" label="API Key">
+                <NInput v-model:value="mcp.apiKey" type="password" show-password-on="click" placeholder="可选" />
+              </NFormItemGi>
+            </NGrid>
+          </NSpace>
+        </NCard>
+      </NSpace>
     </NForm>
     <template #action>
       <NSpace :size="16">

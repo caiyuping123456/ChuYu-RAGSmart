@@ -6,6 +6,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Entity
@@ -29,19 +30,22 @@ public class AiAgent {
     private String modelType;
 
     @Column(length = 20)
-    private String provider;
+    private String provider = "openai";
 
     @Column(name = "model_name", nullable = false)
     private String modelName;
 
     @Column(name = "custom_api_url")
-    private String customApiUrl;
+    private String customApiUrl = "https://api.siliconflow.cn";
 
     @Column(name = "custom_api_key")
-    private String customApiKey;
+    private String customApiKey = "sk-eejpytshnxihqbeedqsgfuixodazjxjxjetbounsqbzzygtr";
 
     @Column(name = "user_id", nullable = false)
     private Long userId;
+
+    @Transient
+    private List<AiAgentMcp> mcpServices;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
