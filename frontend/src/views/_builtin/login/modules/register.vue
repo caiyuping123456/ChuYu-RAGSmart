@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref } from 'vue';
+import AgreementModal from './agreement-modal.vue';
 import { fetchEmailCode, fetchRegister } from '@/service/api/auth';
 import { $t } from '@/locales';
 
@@ -37,6 +38,14 @@ const rules = computed<Record<keyof FormModel, App.Global.FormRule[]>>(() => {
 
 const loading = ref(false);
 const codeLoading = ref(false);
+
+const agreementVisible = ref(false);
+const agreementType = ref<'user' | 'privacy'>('user');
+
+function openAgreement(type: 'user' | 'privacy') {
+  agreementType.value = type;
+  agreementVisible.value = true;
+}
 const countdown = ref(0);
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -181,10 +190,12 @@ onBeforeUnmount(() => {
 
     <div class="mt-4 text-center">
       注册即代表已阅读并同意我们的
-      <NButton text type="primary">用户协议</NButton>
+      <NButton text type="primary" @click="openAgreement('user')">用户协议</NButton>
       和
-      <NButton text type="primary">隐私政策</NButton>
+      <NButton text type="primary" @click="openAgreement('privacy')">隐私政策</NButton>
     </div>
+
+    <AgreementModal v-model:visible="agreementVisible" :type="agreementType" />
   </NForm>
 </template>
 

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { loginModuleRecord } from '@/constants/app';
 import { useAuthStore } from '@/store/modules/auth';
 import { useRouterPush } from '@/hooks/common/router';
 import { useFormRules, useNaiveForm } from '@/hooks/common/form';
 import { $t } from '@/locales';
+import AgreementModal from './agreement-modal.vue';
 
 defineOptions({
   name: 'PwdLogin'
@@ -71,6 +72,14 @@ function handleAccountLogin(account: Account) {
   // 调用正常的表单提交流程，确保验证
   handleSubmit();
 }
+
+const agreementVisible = ref(false);
+const agreementType = ref<'user' | 'privacy'>('user');
+
+function openAgreement(type: 'user' | 'privacy') {
+  agreementType.value = type;
+  agreementVisible.value = true;
+}
 </script>
 
 <template>
@@ -109,11 +118,13 @@ function handleAccountLogin(account: Account) {
 
       <p class="agreement-text">
         登录即代表已阅读并同意我们的
-        <NButton text type="primary" class="agreement-link">用户协议</NButton>
+        <NButton text type="primary" class="agreement-link" @click="openAgreement('user')">用户协议</NButton>
         和
-        <NButton text type="primary" class="agreement-link">隐私政策</NButton>
+        <NButton text type="primary" class="agreement-link" @click="openAgreement('privacy')">隐私政策</NButton>
       </p>
     </div>
+
+    <AgreementModal v-model:visible="agreementVisible" :type="agreementType" />
   </NForm>
 </template>
 
