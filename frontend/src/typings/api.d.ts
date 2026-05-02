@@ -205,9 +205,13 @@ declare namespace Api {
     interface McpService {
       id?: number;
       name: string;
-      type: 'local' | 'remote';
-      endpoint: string;
-      apiKey?: string;
+      transport: 'http' | 'streamable_http';
+      /** Backward-compat for old data */
+      endpoint?: string;
+      url: string;
+      /** JSON string for editing in UI, e.g. {"Authorization":"Bearer xxx"} */
+      headersJson: string;
+      timeoutMs?: number;
       enabled: boolean;
     }
 

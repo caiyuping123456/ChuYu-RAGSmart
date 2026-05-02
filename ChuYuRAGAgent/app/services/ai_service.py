@@ -1,10 +1,12 @@
 import json
 
 import httpx
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain.agents import create_agent
+from langchain_core.messages import HumanMessage,AIMessageChunk, AIMessage
 
 from app.agent.LLMBot import get_LLM_Model
 from app.agent.memory_saver import load_memory_messages, save_turn
+from app.mcp.get_mcp_tools import get_mcp_tools
 from app.model.chat_request import ChatRequest
 from app.services.SQL_servicer import get_agent_info
 
@@ -18,11 +20,11 @@ class AIService:
 
         memory_messages = load_memory_messages(request.userId, request.agentId)
 
-        messages = [
-            SystemMessage(content=system_prompt),
-            *memory_messages,
-            HumanMessage(content=question),
-        ]
+        # messages = [
+        #     SystemMessage(content=system_prompt),
+        #     *memory_messages,
+        #     HumanMessage(content=question),
+        # ]
 
         assistant_full_text = ""
 
@@ -33,12 +35,28 @@ class AIService:
                 agent_info["model_name"],
                 agent_info["provider"],
             )
+            tools = await get_mcp_tools(request.agentId, request.userId)
+            agent = create_agent(llm, tools, system_prompt=system_prompt)
 
-            async for chunk in llm.astream(messages):
-                if chunk.content:
-                    assistant_full_text += chunk.content
-                    yield chunk.content
+            assistant_full_text = ""
 
+            # Agent 自动处理工具调用的流式输出
+            input_messages = [
+                *memory_messages,
+                HumanMessage(content=question),
+            ]
+            async for chunk in agent.astream({"messages": input_messages}, stream_mode="messages"):
+                # stream_mode="messages" 直接输出 (message, metadata) 元组
+                if not isinstance(chunk, tuple) or len(chunk) != 2:
+                    continue
+                msg, metadata = chunk
+                # AIMessageChunk 的 type 是 "AIMessageChunk"，需要用 isinstance 判断
+                if isinstance(msg, (AIMessage, AIMessageChunk)) and msg.content:
+                    if not getattr(msg, 'tool_calls', None):
+                        assistant_full_text += msg.content
+                        yield msg.content
+
+            # 这个是持久化
             save_turn(
                 user_id=request.userId,
                 agent_id=request.agentId,
@@ -46,7 +64,8 @@ class AIService:
                 assistant_text=assistant_full_text,
             )
 
-        except Exception:
+        except Exception as e:
+            print("log: agent降级回复:", e)
             payload = {
                 "model": agent_info["model_name"],
                 "messages": [

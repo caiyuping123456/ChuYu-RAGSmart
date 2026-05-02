@@ -94,7 +94,7 @@ public class AiAgentController {
     }
 
     private SseEmitter createSseEmitter(ChatRequest request) {
-        SseEmitter emitter = new SseEmitter(60000L); // 60秒超时
+        SseEmitter emitter = new SseEmitter(600000L); // 600秒超时
 
         executorService.execute(() -> {
             try {
@@ -107,7 +107,6 @@ public class AiAgentController {
                 flux.subscribe(
                     chunk -> {
                         try {
-                            log.info("Sending SSE chunk: [{}]", chunk);
                             emitter.send(SseEmitter.event().data(chunk));
                         } catch (IOException e) {
                             log.error("Error sending SSE chunk", e);
@@ -127,7 +126,7 @@ public class AiAgentController {
                 );
 
                 // 等待流完成
-                latch.await(55, java.util.concurrent.TimeUnit.SECONDS);
+                latch.await(60, java.util.concurrent.TimeUnit.SECONDS);
             } catch (Exception e) {
                 log.error("Error creating SSE stream", e);
                 emitter.completeWithError(e);

@@ -6,6 +6,7 @@ import pymysql
 
 from app.mapper.RedisLite import get_redis_client
 from app.mapper.SQLLite import get_conn
+from app.utils.aes_crypt import decrypt_java_aes, encrypt_java_aes
 
 load_dotenv()
 
@@ -31,6 +32,13 @@ def get_agent_info(id, user_id):
         # 兼容历史脏数据：如果解出来还是字符串，再解一次
         if isinstance(data, str):
             data = json.loads(data)
+
+        if not data['custom_api_url'] or not data['custom_api_key']:
+            data['custom_api_url'] = default_result['custom_api_url']
+            data['custom_api_key'] = default_result['custom_api_key']
+        else:
+            # 解密api_key
+            data['custom_api_key'] = decrypt_java_aes(data['custom_api_key'])
         return data
     try:
         conn = get_conn()
@@ -38,19 +46,27 @@ def get_agent_info(id, user_id):
             sql = "SELECT custom_api_key,custom_api_url,model_name,system_prompt ,model_type ,provider FROM ai_agent WHERE id= %s AND user_id = %s "
             cursor.execute(sql, (id, user_id,))
             result = cursor.fetchone()
-            print("result:", result)
-            if result['model_type'] == 'PRESET':
+            if result is not None and result['model_type'] == 'PRESET':
                 default_result['model_name'] = result['model_name']
                 default_result['system_prompt'] = result['system_prompt']
-                if result:
-                    redis_client.set(redis_key, json.dumps(default_result), ex=3600, nx=True)
-                return default_result
-            if result:
+                default_result['provider'] = result.get('provider', 'openai')
+                data = default_result.copy()
+                # 加密操作
+                cache_data = default_result.copy()
+                cache_data['custom_api_key'] = encrypt_java_aes(default_result['custom_api_key'])
+                redis_client.set(redis_key, json.dumps(cache_data), ex=3600, nx=True)
+                return data
+            if result is not None:
                 redis_client.set(redis_key, json.dumps(result), ex=3600, nx=True)
-            return result if result is not None else default_result
+                data = result
+                data['custom_api_key'] = decrypt_java_aes(data['custom_api_key'])
+            else:
+                data = default_result
+            return data
+
     except Exception as e:
         print(f"数据库查询失败：{e}")
-        return None
+        return default_result
     finally:
         if conn:
             conn.close()
