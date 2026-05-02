@@ -25,14 +25,17 @@ public class AiAgentMcp {
     @Column(nullable = false)
     private String name;
 
-    @Column(nullable = false, length = 10)
-    private String type; // local | remote
+    @Column(nullable = false, length = 20)
+    private String transport; // http | streamable_http
 
     @Column(nullable = false, columnDefinition = "TEXT")
-    private String endpoint;
+    private String url;
 
-    @Column(name = "api_key", columnDefinition = "TEXT")
-    private String apiKey;
+    @Column(name = "headers_json", columnDefinition = "TEXT")
+    private String headersJson;
+
+    @Column(name = "timeout_ms")
+    private Integer timeoutMs;
 
     @Column(nullable = false)
     private Boolean enabled = true;
