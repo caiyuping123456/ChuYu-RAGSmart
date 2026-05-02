@@ -60,6 +60,19 @@ public class AiAgentService {
             mcp.setId(null);
             mcp.setAgentId(agentId);
             mcp.setUserId(userId);
+            if (mcp.getTimeoutMs() == null) {
+                mcp.setTimeoutMs(15000);
+            }
+            String headers = mcp.getHeadersJson();
+            if (headers == null || headers.isBlank() || "{}".equals(headers.trim())) {
+                mcp.setHeadersJson("");
+            }
+            if (mcp.getTransport() == null || mcp.getTransport().isBlank()) {
+                mcp.setTransport("http");
+            }
+            if (mcp.getUrl() == null || mcp.getUrl().isBlank()) {
+                mcp.setUrl("");
+            }
             aiAgentMcpRepository.save(mcp);
         }
     }

@@ -46,8 +46,8 @@ const providerOptions = [
 ];
 
 const mcpTypeOptions = [
-  { label: '本地 MCP', value: 'local' },
-  { label: '远程 MCP', value: 'remote' }
+  { label: 'HTTP', value: 'http' },
+  { label: 'Streamable HTTP', value: 'streamable_http' }
 ];
 
 function createDefaultModel(): Api.AiAgent.Form {
@@ -93,11 +93,21 @@ const rules = computed(() => ({
   }
 }));
 
+function toFiniteNumber(value: unknown, fallback: number) {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 watch(visible, async () => {
   if (visible.value) {
     if (props.operateType === 'edit' && props.rowData) {
       const { data } = await fetchAgentDetail(props.rowData.id);
       const detail = data || props.rowData;
+
+      console.log('[AgentOperateDialog] agent detail:', detail);
+
+      const rawMcpList = (detail as any).mcpServices ?? (detail as any).mcp_services ?? (detail as any).mcpServiceList;
+      console.log('[AgentOperateDialog] rawMcpList:', rawMcpList);
 
       model.value = {
         name: detail.name,
@@ -108,7 +118,17 @@ watch(visible, async () => {
         provider: detail.provider || 'openai',
         customApiUrl: detail.customApiUrl || '',
         customApiKey: detail.customApiKey || '',
-        mcpServices: detail.mcpServices ? [...detail.mcpServices] : []
+        mcpServices: Array.isArray(rawMcpList)
+          ? rawMcpList.map((m: any) => ({
+              ...m,
+              transport: m.transport ?? 'http',
+              url: m.url ?? m.endpoint ?? '',
+              headersJson:
+                m.headersJson ?? (m.headers ? JSON.stringify(m.headers, null, 2) : m.headers_json) ?? '',
+              timeoutMs: toFiniteNumber(m.timeoutMs ?? m.timeout_ms, 15000),
+              enabled: typeof m.enabled === 'boolean' ? m.enabled : true
+            }))
+          : []
       };
     } else {
       model.value = createDefaultModel();
@@ -125,9 +145,10 @@ function addMcpService() {
   if (!model.value.mcpServices) model.value.mcpServices = [];
   model.value.mcpServices.push({
     name: '',
-    type: 'remote',
-    endpoint: '',
-    apiKey: '',
+    transport: 'http',
+    url: '',
+    headersJson: '',
+    timeoutMs: 15000,
     enabled: true
   });
 }
@@ -136,14 +157,40 @@ function removeMcpService(index: number) {
   model.value.mcpServices?.splice(index, 1);
 }
 
+function normalizeHeadersJson(value: string) {
+  if (!value?.trim()) return '';
+  try {
+    const parsed = JSON.parse(value);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return value;
+  }
+}
+
 async function handleSubmit() {
   await validate();
   loading.value = true;
 
   const isEdit = props.operateType === 'edit';
-  const { error } = isEdit
-    ? await fetchUpdateAgent(props.rowData!.id, model.value)
-    : await fetchCreateAgent(model.value);
+
+  const payload: Api.AiAgent.Form = {
+    ...model.value,
+    mcpServices: (model.value.mcpServices || []).map((m: any) => ({
+      ...m,
+      transport: m.transport ?? 'http',
+      url: m.url ?? m.endpoint ?? '',
+      headersJson: m.headersJson?.trim() ? m.headersJson : '',
+      enabled: typeof m.enabled === 'boolean' ? m.enabled : true
+    }))
+  };
+
+  console.log('[AgentOperateDialog] submit payload:', JSON.parse(JSON.stringify(payload)));
+
+  const { error, data } = isEdit
+    ? await fetchUpdateAgent(props.rowData!.id, payload)
+    : await fetchCreateAgent(payload);
+
+  console.log('[AgentOperateDialog] submit response:', { error, data });
 
   if (!error) {
     window.$message?.success(isEdit ? '更新成功' : '创建成功');
@@ -208,17 +255,30 @@ async function handleSubmit() {
             </NSpace>
 
             <NGrid :cols="24" :x-gap="12">
-              <NFormItemGi :span="12" label="名称">
-                <NInput v-model:value="mcp.name" placeholder="例如：本地文件系统 MCP" />
+              <NFormItemGi :span="24" label="名称">
+                <NInput v-model:value="mcp.name" placeholder="例如：Parallel Search MCP" />
               </NFormItemGi>
-              <NFormItemGi :span="12" label="类型">
-                <NSelect v-model:value="mcp.type" :options="mcpTypeOptions" />
+              <NFormItemGi :span="24" label="MCP通信协议">
+                <NSelect v-model:value="mcp.transport" :options="mcpTypeOptions" />
               </NFormItemGi>
-              <NFormItemGi :span="16" label="Endpoint">
-                <NInput v-model:value="mcp.endpoint" placeholder="例如：http://127.0.0.1:8000 或 https://mcp.example.com" />
+              <NFormItemGi :span="24" label="超时(ms)">
+                <NInput
+                  :value="String(toFiniteNumber((mcp as any).timeoutMs ?? (mcp as any).timeout_ms, 15000))"
+                  @update:value="v => (mcp.timeoutMs = toFiniteNumber(v, 15000))"
+                  placeholder="例如：15000"
+                />
               </NFormItemGi>
-              <NFormItemGi :span="8" label="API Key">
-                <NInput v-model:value="mcp.apiKey" type="password" show-password-on="click" placeholder="可选" />
+
+              <NFormItemGi :span="24" label="MCP通信网址">
+                <NInput v-model:value="mcp.url" placeholder="例如：http://localhost:8000/mcp" />
+              </NFormItemGi>
+
+              <NFormItemGi :span="24" label="请求头">
+                <NInput
+                  v-model:value="mcp.headersJson"
+                  placeholder='例如：{"Authorization":"Bearer YOUR_TOKEN"}（如果没有可以不填）'
+                  @blur="mcp.headersJson = normalizeHeadersJson(mcp.headersJson)"
+                />
               </NFormItemGi>
             </NGrid>
           </NSpace>

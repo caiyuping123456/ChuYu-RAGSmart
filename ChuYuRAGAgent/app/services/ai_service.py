@@ -1,10 +1,12 @@
 import json
 
 import httpx
+from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.agent.LLMBot import get_LLM_Model
 from app.agent.memory_saver import load_memory_messages, save_turn
+from app.mcp.get_mcp_tools import get_mcp_tools
 from app.model.chat_request import ChatRequest
 from app.services.SQL_servicer import get_agent_info
 
@@ -33,12 +35,21 @@ class AIService:
                 agent_info["model_name"],
                 agent_info["provider"],
             )
+            # tools = await get_mcp_tools(request.agentId, request.userId)
+            # agent = create_agent(llm, tools)
+            agent = create_agent(llm)
+            assistant_full_text = ""
 
-            async for chunk in llm.astream(messages):
-                if chunk.content:
-                    assistant_full_text += chunk.content
-                    yield chunk.content
+            # Agent 自动处理工具调用的流式输出
+            async for chunk in agent.astream(messages):
+                # 处理不同类型的 chunk
+                if "messages" in chunk:
+                    msg = chunk["messages"][0]
+                    if hasattr(msg, 'content') and msg.content:
+                        assistant_full_text += msg.content
+                        yield msg.content
 
+            # 这个是持久化
             save_turn(
                 user_id=request.userId,
                 agent_id=request.agentId,
@@ -47,6 +58,7 @@ class AIService:
             )
 
         except Exception:
+            print("log: agent降级回复")
             payload = {
                 "model": agent_info["model_name"],
                 "messages": [

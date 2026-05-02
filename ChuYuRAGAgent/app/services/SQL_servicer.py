@@ -31,6 +31,11 @@ def get_agent_info(id, user_id):
         # 兼容历史脏数据：如果解出来还是字符串，再解一次
         if isinstance(data, str):
             data = json.loads(data)
+
+        if not data['custom_api_url'] or not data['custom_api_key']:
+            data['custom_api_url'] = default_result['custom_api_url']
+            data['custom_api_key'] = default_result['custom_api_key']
+        print("Redis data:", data)
         return data
     try:
         conn = get_conn()
@@ -42,6 +47,7 @@ def get_agent_info(id, user_id):
             if result['model_type'] == 'PRESET':
                 default_result['model_name'] = result['model_name']
                 default_result['system_prompt'] = result['system_prompt']
+                default_result['provider'] = result.get('provider', 'openai')
                 if result:
                     redis_client.set(redis_key, json.dumps(default_result), ex=3600, nx=True)
                 return default_result
@@ -50,7 +56,7 @@ def get_agent_info(id, user_id):
             return result if result is not None else default_result
     except Exception as e:
         print(f"数据库查询失败：{e}")
-        return None
+        return default_result
     finally:
         if conn:
             conn.close()
