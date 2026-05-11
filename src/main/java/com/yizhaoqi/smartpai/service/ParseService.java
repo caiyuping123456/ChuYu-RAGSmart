@@ -1,5 +1,6 @@
 package com.yizhaoqi.smartpai.service;
 
+import com.yizhaoqi.smartpai.langchain4j.vlembedding.VLEmbeddingToolUtils;
 import com.yizhaoqi.smartpai.model.DocumentVector;
 import com.yizhaoqi.smartpai.repository.DocumentVectorRepository;
 import org.apache.tika.exception.TikaException;
@@ -28,18 +29,24 @@ public class ParseService {
     @Autowired
     private DocumentVectorRepository documentVectorRepository;
 
+    @Autowired
+    private VLEmbeddingToolUtils vlEmbeddingToolUtils;
+
     @Value("${file.parsing.chunk-size}")
     private int chunkSize;
 
     @Value("${file.parsing.parent-chunk-size:1048576}")
     private int parentChunkSize;
-    
+
     @Value("${file.parsing.buffer-size:8192}")
     private int bufferSize;
-    
+
     @Value("${file.parsing.max-memory-threshold:0.8}")
     private double maxMemoryThreshold;
-    
+
+    @Value("${file.parsing.pdf-overlap-chars:200}")
+    private int pdfOverlapChars;
+
     public ParseService() {
         // 无需初始化，StandardTokenizer是静态方法
     }
@@ -96,6 +103,119 @@ public class ParseService {
     }
 
     /**
+     * PDF多模态解析：截图识图提取文本，带页面重叠，超长文本分段存入MySQL
+     * 向量化由VectorizationService统一处理（bge-m3文本向量化）
+     */
+    public void parsePDFAndSave(String fileMd5, InputStream fileStream,
+                             String userId, String orgTag, boolean isPublic){
+        logger.info("开始解析PDF文件，fileMd5: {}, userId: {}, orgTag: {}, isPublic: {}",
+                fileMd5, userId, orgTag, isPublic);
+        checkMemoryThreshold();
+
+        // 1. 截图识图，提取每页文本
+        List<String> pageDescriptions = vlEmbeddingToolUtils.processPdf(fileStream, 150);
+        int totalPages = pageDescriptions.size();
+        logger.info("PDF识图完成，共{}页", totalPages);
+
+        // 2. 带重叠组装文本，超长则分段，存入MySQL
+        int chunkId = 0;
+        for (int i = 0; i < totalPages; i++) {
+            String overlappedText = assemblePageTextWithOverlap(pageDescriptions, i);
+            List<String> subChunks = splitIfTooLong(overlappedText);
+            for (String chunk : subChunks) {
+                chunkId++;
+                DocumentVector dv = new DocumentVector();
+                dv.setFileMd5(fileMd5);
+                dv.setChunkId(chunkId);
+                dv.setTextContent(chunk);
+                dv.setUserId(userId);
+                dv.setOrgTag(orgTag);
+                dv.setPublic(isPublic);
+                documentVectorRepository.save(dv);
+            }
+        }
+        logger.info("PDF解析入库完成，fileMd5: {}, 共{}页, {}个chunk", fileMd5, totalPages, chunkId);
+    }
+
+    /**
+     * 图片解析：识图提取文本，超长文本分段存入MySQL
+     * 向量化由VectorizationService统一处理（bge-m3文本向量化）
+     */
+    public void parseImageAndSave(String fileMd5, InputStream fileStream,
+                                String userId, String orgTag, boolean isPublic){
+        logger.info("开始解析图片文件，fileMd5: {}, userId: {}, orgTag: {}, isPublic: {}",
+                fileMd5, userId, orgTag, isPublic);
+        checkMemoryThreshold();
+
+        // 识图提取文本
+        String description = vlEmbeddingToolUtils.processImageByStream(fileStream, "image/jpeg");
+        logger.info("图片识图完成，fileMd5: {}", fileMd5);
+
+        // 超长则分段，存入MySQL
+        List<String> subChunks = splitIfTooLong(description);
+        for (int i = 0; i < subChunks.size(); i++) {
+            DocumentVector dv = new DocumentVector();
+            dv.setFileMd5(fileMd5);
+            dv.setChunkId(i + 1);
+            dv.setTextContent(subChunks.get(i));
+            dv.setUserId(userId);
+            dv.setOrgTag(orgTag);
+            dv.setPublic(isPublic);
+            documentVectorRepository.save(dv);
+        }
+        logger.info("图片解析入库完成，fileMd5: {}, {}个chunk", fileMd5, subChunks.size());
+    }
+
+    /**
+     * 如果文本超过chunkSize，按语义分段；否则原样返回
+     */
+    private List<String> splitIfTooLong(String text) {
+        if (text.length() <= chunkSize) {
+            return List.of(text);
+        }
+        return splitTextIntoChunksWithSemantics(text, chunkSize);
+    }
+
+    /**
+     * 组装带重叠的页面文本
+     * 第1页：本页 + 下一页头部
+     * 中间页：上一页尾部 + 本页 + 下一页头部
+     * 最后一页：上一页尾部 + 本页
+     */
+    private String assemblePageTextWithOverlap(List<String> pageDescriptions, int pageIndex) {
+        StringBuilder sb = new StringBuilder();
+
+        // 上一页尾部
+        if (pageIndex > 0) {
+            String prevPage = pageDescriptions.get(pageIndex - 1);
+            if (prevPage.length() > pdfOverlapChars) {
+                sb.append("...").append(prevPage.substring(prevPage.length() - pdfOverlapChars));
+            } else {
+                sb.append(prevPage);
+            }
+            sb.append("\n\n");
+        }
+
+        // 本页全文
+        sb.append(pageDescriptions.get(pageIndex));
+
+        // 下一页头部
+        if (pageIndex < pageDescriptions.size() - 1) {
+            String nextPage = pageDescriptions.get(pageIndex + 1);
+            sb.append("\n\n");
+            if (nextPage.length() > pdfOverlapChars) {
+                sb.append(nextPage.substring(0, pdfOverlapChars)).append("...");
+            } else {
+                sb.append(nextPage);
+            }
+        }
+
+        return sb.toString();
+    }
+
+
+
+    /**
      * 兼容旧版本的解析方法
      */
     public void parseAndSave(String fileMd5, InputStream fileStream) throws IOException, TikaException {
@@ -109,24 +229,24 @@ public class ParseService {
         long totalMemory = runtime.totalMemory();
         long freeMemory = runtime.freeMemory();
         long usedMemory = totalMemory - freeMemory;
-        
+
         double memoryUsage = (double) usedMemory / maxMemory;
-        
+
         if (memoryUsage > maxMemoryThreshold) {
             logger.warn("内存使用率过高: {:.2f}%, 触发垃圾回收", memoryUsage * 100);
             System.gc();
-            
+
             // 重新检查
             usedMemory = runtime.totalMemory() - runtime.freeMemory();
             memoryUsage = (double) usedMemory / maxMemory;
-            
+
             if (memoryUsage > maxMemoryThreshold) {
-                throw new RuntimeException("内存不足，无法处理大文件。当前使用率: " + 
+                throw new RuntimeException("内存不足，无法处理大文件。当前使用率: " +
                     String.format("%.2f%%", memoryUsage * 100));
             }
         }
     }
-    
+
     /**
      * 内部流式内容处理器，实现了父子文档切分策略的核心逻辑。
      * Tika解析器会调用characters方法，当累积的文本达到"父块"大小时，
@@ -335,39 +455,39 @@ public class ParseService {
      */
     private List<String> splitLongSentence(String sentence, int chunkSize) {
         List<String> chunks = new ArrayList<>();
-        
+
         try {
             // 使用HanLP StandardTokenizer进行分词
             List<Term> termList = StandardTokenizer.segment(sentence);
-            
+
             StringBuilder currentChunk = new StringBuilder();
             for (Term term : termList) {
                 String word = term.word;
-                
+
                 // 如果添加这个词会超过chunk大小限制，且当前chunk不为空
                 if (currentChunk.length() + word.length() > chunkSize && !currentChunk.isEmpty()) {
                     chunks.add(currentChunk.toString());
                     currentChunk = new StringBuilder();
                 }
-                
+
                 currentChunk.append(word);
             }
-            
+
             if (!currentChunk.isEmpty()) {
                 chunks.add(currentChunk.toString());
             }
-            
-            logger.debug("HanLP智能分词成功，原文长度: {}, 分词数: {}, 分块数: {}", 
+
+            logger.debug("HanLP智能分词成功，原文长度: {}, 分词数: {}, 分块数: {}",
                     sentence.length(), termList.size(), chunks.size());
-                    
+
         } catch (Exception e) {
             logger.warn("HanLP分词异常: {}, 使用字符分割作为备用方案", e.getMessage());
             chunks = splitByCharacters(sentence, chunkSize);
          }
-        
+
         return chunks;
     }
-    
+
     /**
      * 备用方案：按字符分割
      */

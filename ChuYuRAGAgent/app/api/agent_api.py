@@ -6,7 +6,6 @@ from app.services.ai_service import AIService
 
 router = APIRouter()
 
-
 @router.post("/v1/agent")
 async def chat_agent(request: ChatRequest, authorization: str = Header(None)):
     if not authorization:

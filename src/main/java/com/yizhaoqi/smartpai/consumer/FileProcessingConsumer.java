@@ -1,7 +1,9 @@
 package com.yizhaoqi.smartpai.consumer;
 
 import com.yizhaoqi.smartpai.config.KafkaConfig;
+import com.yizhaoqi.smartpai.langchain4j.vlembedding.VLEmbeddingToolUtils;
 import com.yizhaoqi.smartpai.model.FileProcessingTask;
+import com.yizhaoqi.smartpai.service.FileTypeValidationService;
 import com.yizhaoqi.smartpai.service.ParseService;
 import com.yizhaoqi.smartpai.service.VectorizationService;
 import io.minio.MinioClient;
@@ -16,6 +18,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.List;
 
 @Service
 @Slf4j
@@ -23,13 +26,20 @@ public class FileProcessingConsumer {
 
     private final ParseService parseService;
     private final VectorizationService vectorizationService;
+    private final FileTypeValidationService fileTypeValidationService;
+    private final VLEmbeddingToolUtils vlEmbeddingToolUtils;
+
     @Autowired
     private KafkaConfig kafkaConfig;
 
-
-    public FileProcessingConsumer(ParseService parseService, VectorizationService vectorizationService) {
+    public FileProcessingConsumer(ParseService parseService,
+                                  VectorizationService vectorizationService,
+                                  FileTypeValidationService fileTypeValidationService,
+                                  VLEmbeddingToolUtils vlEmbeddingToolUtils) {
         this.parseService = parseService;
         this.vectorizationService = vectorizationService;
+        this.fileTypeValidationService = fileTypeValidationService;
+        this.vlEmbeddingToolUtils = vlEmbeddingToolUtils;
     }
 
     /**
@@ -43,7 +53,7 @@ public class FileProcessingConsumer {
          * 日志打印
          */
         log.info("Received task: {}", task);
-        log.info("文件权限信息: userId={}, orgTag={}, isPublic={}", 
+        log.info("文件权限信息: userId={}, orgTag={}, isPublic={}",
                 task.getUserId(), task.getOrgTag(), task.isPublic());
 
         /**
@@ -72,27 +82,52 @@ public class FileProcessingConsumer {
                 fileStream = new BufferedInputStream(fileStream);
             }
 
-            /**
-             * 进行文件解析
-             * 然后存到数据库中
-             */
-            // 解析文件
-            parseService.parseAndSave(task.getFileMd5(), fileStream, 
-                    task.getUserId(), task.getOrgTag(), task.isPublic());
-            log.info("文件解析完成，fileMd5: {}", task.getFileMd5());
+            // 多模态导入
+            if (fileTypeValidationService.isPdfExtension(task.getFileName())) {
+                // PDF → 截图识图提取文本，不走Tika
+                log.info("PDF文件走VL识图: fileMd5={}", task.getFileMd5());
+                parseService.parsePDFAndSave(task.getFileMd5(), fileStream,
+                        task.getUserId(), task.getOrgTag(), task.isPublic());
+                log.info("PDF文件解析完成，fileMd5: {}", task.getFileMd5());
 
-            /**
-             * 解析好了之后就进行文档向量化处理
-             * 这个包括向量化和存储ES
-             */
-            // 向量化处理
-            vectorizationService.vectorize(task.getFileMd5(), 
+            } else if (fileTypeValidationService.isImageExtension(task.getFileName())) {
+                // 图片 → 识图提取文本
+                log.info("图片文件走识图: fileMd5={}", task.getFileMd5());
+                parseService.parseImageAndSave(task.getFileMd5(), fileStream,
+                        task.getUserId(), task.getOrgTag(), task.isPublic());
+                log.info("图片解析完成，fileMd5: {}", task.getFileMd5());
+            } else {
+                // 其他文件 → 走原来的Tika解析 + bge-m3向量化
+                parseService.parseAndSave(task.getFileMd5(), fileStream,
+                        task.getUserId(), task.getOrgTag(), task.isPublic());
+                log.info("文件解析完成，fileMd5: {}", task.getFileMd5());
+            }
+            vectorizationService.vectorize(task.getFileMd5(),
                     task.getUserId(), task.getOrgTag(), task.isPublic());
-
-            /**
-             * 日志打印
-             */
             log.info("向量化完成，fileMd5: {}", task.getFileMd5());
+//
+//            /**
+//             * 进行文件的判断，判断是不是图片或者PDF
+//             */
+//
+//
+//            /**
+//             * 进行文件解析
+//             * 然后存到数据库中
+//             */
+//            // 解析文件
+//            parseService.parseAndSave(task.getFileMd5(), fileStream,
+//                    task.getUserId(), task.getOrgTag(), task.isPublic());
+//            log.info("文件解析完成，fileMd5: {}", task.getFileMd5());
+//
+//            /**
+//             * 解析好了之后就进行文档向量化处理
+//             * 这个包括向量化和存储ES
+//             */
+//            // 向量化处理
+//            vectorizationService.vectorize(task.getFileMd5(),
+//                    task.getUserId(), task.getOrgTag(), task.isPublic());
+
         } catch (Exception e) {
             log.error("Error processing task: {}", task, e);
             // 抛出异常让 Kafka 的 DefaultErrorHandler 捕获并触发重试 / 死信

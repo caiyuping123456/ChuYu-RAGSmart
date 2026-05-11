@@ -210,17 +210,14 @@ public class DocumentService {
             throw new RuntimeException("获取用户上传的文件列表失败: " + e.getMessage(), e);
         }
     }
-    
+
     /**
      * 生成文件下载链接
-     * 
+     *
      * @param fileMd5 文件MD5
      * @return 预签名下载URL
      */
     public String generateDownloadUrl(String fileMd5) {
-        /**
-         * 这个是生成minio中的下载地址
-         */
         logger.info("生成文件下载链接: fileMd5={}", fileMd5);
         
         try {
@@ -271,83 +268,82 @@ public class DocumentService {
      * @param fileName 文件名
      * @return 文件预览内容，对于文本文件返回前几KB内容，非文本文件返回文件信息
      */
-    public String getFilePreviewContent(String fileMd5, String fileName) {
+    public Map<String, Object> getFilePreviewContent(String fileMd5, String fileName) {
         logger.info("获取文件预览内容: fileMd5={}, fileName={}", fileMd5, fileName);
 
-        /**
-         * 同样是直接调用Minio的请求进行
-         * 文件内容获取
-         */
         try {
-            // MinIO中的对象路径格式: merged/文件名
             String objectName = "merged/" + fileName;
-            
-            // 判断文件类型
             String fileExtension = getFileExtension(fileName).toLowerCase();
-            boolean isTextFile = isTextFile(fileExtension);
-            
-            if (isTextFile) {
-                // 对于文本文件，读取前10KB内容
+            FileUpload fileUpload = fileUploadRepository.findByFileMd5(fileMd5)
+                    .orElseThrow(() -> new RuntimeException("文件不存在: " + fileMd5));
+
+            Map<String, Object> result = new java.util.HashMap<>();
+            result.put("fileName", fileName);
+            result.put("fileSize", fileUpload.getTotalSize());
+            result.put("fileType", fileExtension);
+
+            if (isPdfFile(fileExtension)) {
+                String presignedUrl = generateDownloadUrl(fileMd5);
+                result.put("previewType", "pdf");
+                result.put("previewUrl", presignedUrl);
+                logger.info("PDF文件预览，返回presigned URL: fileMd5={}", fileMd5);
+                return result;
+            } else if (isImageFile(fileExtension)) {
+                String presignedUrl = generateDownloadUrl(fileMd5);
+                result.put("previewType", "image");
+                result.put("previewUrl", presignedUrl);
+                logger.info("图片文件预览，返回presigned URL: fileMd5={}", fileMd5);
+                return result;
+            } else if (isTextFile(fileExtension)) {
+                // 文本文件：读取前10KB内容
                 try (InputStream inputStream = minioClient.getObject(
                         GetObjectArgs.builder()
                                 .bucket("uploads")
                                 .object(objectName)
                                 .build())) {
 
-                    /**
-                     * 这里是通过字符流进行批量读取
-                     */
                     BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
                     StringBuilder content = new StringBuilder();
                     String line;
                     int bytesRead = 0;
-                    int maxBytes = 10240; // 10KB
-                    
+                    int maxBytes = 10240;
+
                     while ((line = reader.readLine()) != null && bytesRead < maxBytes) {
                         content.append(line).append("\n");
                         bytesRead += line.getBytes("UTF-8").length + 1;
                     }
-                    
-                    String result = content.toString();
+
+                    String textContent = content.toString();
                     if (bytesRead >= maxBytes) {
-                        result += "\n... (内容已截断，仅显示前10KB)";
+                        textContent += "\n... (内容已截断，仅显示前10KB)";
                     }
 
-                    /**
-                     * 将读取的文件进行放回
-                     */
-                    logger.info("成功获取文本文件预览内容: fileMd5={}, contentLength={}", fileMd5, result.length());
+                    result.put("previewType", "text");
+                    result.put("content", textContent);
+                    logger.info("成功获取文本文件预览内容: fileMd5={}, contentLength={}", fileMd5, textContent.length());
                     return result;
                 }
             } else {
-                /**
-                 * 对于不能进行字符流读取的文件
-                 * 直接进行放回
-                 * 通知前端
-                 */
-                // 对于非文本文件，返回文件信息
-                FileUpload fileUpload = fileUploadRepository.findByFileMd5(fileMd5)
-                        .orElseThrow(() -> new RuntimeException("文件不存在: " + fileMd5));
-                
+                // 其他不支持预览的文件类型
                 String fileInfo = String.format(
-                    "文件名: %s\n" +
-                    "文件大小: %s\n" +
-                    "文件类型: %s\n" +
-                    "上传时间: %s\n\n" +
-                    "此文件类型不支持预览，请下载后查看。",
+                    "文件名: %s\n文件大小: %s\n文件类型: %s\n上传时间: %s\n\n此文件类型不支持预览，请下载后查看。",
                     fileName,
                     formatFileSize(fileUpload.getTotalSize()),
                     fileExtension.toUpperCase(),
                     fileUpload.getCreatedAt()
                 );
-                
+                result.put("previewType", "unsupported");
+                result.put("content", fileInfo);
                 logger.info("返回非文本文件信息: fileMd5={}", fileMd5);
-                return fileInfo;
+                return result;
             }
-            
+
         } catch (Exception e) {
             logger.error("获取文件预览内容失败: fileMd5={}, fileName={}", fileMd5, fileName, e);
-            return "预览失败: " + e.getMessage();
+            Map<String, Object> errorResult = new java.util.HashMap<>();
+            errorResult.put("previewType", "error");
+            errorResult.put("content", "预览失败: " + e.getMessage());
+            return errorResult;
         }
     }
     
@@ -367,12 +363,22 @@ public class DocumentService {
      */
     private boolean isTextFile(String extension) {
         String[] textExtensions = {
-            "txt", "md", "doc", "docx", "pdf", "html", "htm", "xml", "json", 
-            "csv", "log", "java", "js", "ts", "py", "cpp", "c", "h", "css", 
+            "txt", "md", "doc", "docx", "html", "htm", "xml", "json",
+            "csv", "log", "java", "js", "ts", "py", "cpp", "c", "h", "css",
             "scss", "less", "sql", "yml", "yaml", "properties", "conf", "config"
         };
-        
+
         return Arrays.stream(textExtensions)
+                .anyMatch(ext -> ext.equalsIgnoreCase(extension));
+    }
+
+    private boolean isPdfFile(String extension) {
+        return "pdf".equalsIgnoreCase(extension);
+    }
+
+    private boolean isImageFile(String extension) {
+        String[] imageExtensions = {"jpg", "jpeg", "png", "bmp", "webp", "tiff", "gif"};
+        return Arrays.stream(imageExtensions)
                 .anyMatch(ext -> ext.equalsIgnoreCase(extension));
     }
     

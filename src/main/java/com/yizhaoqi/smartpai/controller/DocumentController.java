@@ -554,26 +554,19 @@ public class DocumentController {
                 }
                 
                 FileUpload file = publicFile.get();
-                String previewContent = documentService.getFilePreviewContent(file.getFileMd5(), file.getFileName());
-                
-                if (previewContent == null) {
+                Map<String, Object> previewData = documentService.getFilePreviewContent(file.getFileMd5(), file.getFileName());
+
+                if (previewData == null) {
                     Map<String, Object> response = new HashMap<>();
                     response.put("code", HttpStatus.INTERNAL_SERVER_ERROR.value());
                     response.put("message", "无法获取文件预览内容");
                     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
                 }
 
-                /**
-                 * 封装前端请求
-                 */
                 Map<String, Object> response = new HashMap<>();
                 response.put("code", 200);
                 response.put("message", "文件预览内容获取成功");
-                response.put("data", Map.of(
-                    "fileName", file.getFileName(),
-                    "content", previewContent,
-                    "fileSize", file.getTotalSize()
-                ));
+                response.put("data", previewData);
                 return ResponseEntity.ok(response);
             }
             
@@ -601,13 +594,10 @@ public class DocumentController {
             
             FileUpload file = targetFile.get();
 
-            /**
-             * 这个是获取文件的内容
-             */
             // 获取文件预览内容
-            String previewContent = documentService.getFilePreviewContent(file.getFileMd5(), file.getFileName());
-            
-            if (previewContent == null) {
+            Map<String, Object> previewData = documentService.getFilePreviewContent(file.getFileMd5(), file.getFileName());
+
+            if (previewData == null) {
                 LogUtils.logUserOperation(userId, "PREVIEW_FILE_BY_NAME", fileName, "FAILED_GET_CONTENT");
                 monitor.end("预览失败：无法获取文件内容");
                 Map<String, Object> response = new HashMap<>();
@@ -615,22 +605,15 @@ public class DocumentController {
                 response.put("message", "无法获取文件预览内容");
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
             }
-            
+
             LogUtils.logFileOperation(userId, "PREVIEW", file.getFileName(), file.getFileMd5(), "SUCCESS");
             LogUtils.logUserOperation(userId, "PREVIEW_FILE_BY_NAME", fileName, "SUCCESS");
             monitor.end("文件预览内容获取成功");
 
-            /**
-             * 同样是封装请求
-             */
             Map<String, Object> response = new HashMap<>();
             response.put("code", 200);
             response.put("message", "文件预览内容获取成功");
-            response.put("data", Map.of(
-                "fileName", file.getFileName(),
-                "content", previewContent,
-                "fileSize", file.getTotalSize()
-            ));
+            response.put("data", previewData);
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {

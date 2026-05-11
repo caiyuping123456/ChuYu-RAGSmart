@@ -6,6 +6,7 @@ app = FastAPI(title="SmartPAI-AI-Service")
 
 # 像 Java 注册 Controller 一样注册路由
 app.include_router(agent_api.router, prefix="/api")
+app.include_router(agent_api.router, prefix="/image")
 
 if __name__ == "__main__":
     import uvicorn

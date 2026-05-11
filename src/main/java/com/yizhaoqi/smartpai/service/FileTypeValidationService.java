@@ -47,7 +47,15 @@ public class FileTypeValidationService {
             // 其他文档格式
             "pages",        // Apple Pages文档
             "numbers",      // Apple Numbers表格
-            "keynote"       // Apple Keynote演示文稿
+            "keynote",       // Apple Keynote演示文稿
+
+            // ali模型支持的图片格式
+            "jpg",
+            "jpeg",
+            "png",
+            "bmp",
+            "webp",
+            "tiff"
     ));
 
     /**
@@ -55,7 +63,7 @@ public class FileTypeValidationService {
      */
     private static final Set<String> UNSUPPORTED_EXTENSIONS = new HashSet<>(Arrays.asList(
             // 图片文件
-            "jpg", "jpeg", "png", "gif", "bmp", "svg", "webp", "tiff", "ico", "psd",
+            "gif", "svg", "ico", "psd",
             
             // 音频文件
             "mp3", "wav", "flac", "aac", "ogg", "wma", "m4a",
@@ -158,6 +166,24 @@ public class FileTypeValidationService {
         logger.warn("文件类型验证失败: fileName={}, extension={}, fileType={}, reason=unknown_type", 
                   fileName, extension, fileType);
         return new FileTypeValidationResult(false, message, fileType, extension);
+    }
+
+    private static final Set<String> IMAGE_EXTENSIONS = new HashSet<>(Arrays.asList(
+            "jpg", "jpeg", "png", "bmp", "webp", "tiff"
+    ));
+
+    public boolean isImageExtension(String fileName) {
+        String ext = extractFileExtension(fileName);
+        return ext != null && IMAGE_EXTENSIONS.contains(ext);
+    }
+
+    public boolean isPdfExtension(String fileName) {
+        String ext = extractFileExtension(fileName);
+        return "pdf".equals(ext);
+    }
+
+    public String getExtension(String fileName) {
+        return extractFileExtension(fileName);
     }
 
     /**

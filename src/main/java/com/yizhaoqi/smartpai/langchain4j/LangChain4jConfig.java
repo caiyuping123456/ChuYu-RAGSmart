@@ -67,4 +67,52 @@ public class LangChain4jConfig {
      */
     @Value("${embedding.api.dimension}")
     private int EmbeddinDimension;
+
+    /**
+     * 识图模型的URL
+     */
+    @Value("${images.api.url}")
+    private String IMAGES_URL;
+
+    /**
+     * 识图模型的API_KEY
+     */
+    @Value("${images.api.key}")
+    private String IMAGES_KEY;
+
+    /**
+     * 识图模型的MODEL
+     */
+    @Value("${images.api.model}")
+    private String IMAGES_MODEL;
+
+    /**
+     * 阿里识图向量模型URL
+     */
+    @Value("${vl-embedding.api.url}")
+    private String VLURL;
+
+    /**
+     * 阿里识图向量模型KEY
+     */
+    @Value("${vl-embedding.api.key}")
+    private String VLKEY;
+
+    /**
+     * 阿里识图向量模型MODEL
+     */
+    @Value("${vl-embedding.api.model}")
+    private String VLMODEL;
+
+    /**
+     * 阿里识图向量模型批量次数
+     */
+    @Value("${vl-embedding.api.batch-size}")
+    private int VLBATCH_SIZE;
+
+    /**
+     * 阿里识图向量模型向量维度
+     */
+    @Value("${vl-embedding.api.dimension}")
+    private int VLDIMENSION;
 }

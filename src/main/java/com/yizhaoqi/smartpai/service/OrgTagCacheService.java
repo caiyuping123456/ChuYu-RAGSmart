@@ -30,7 +30,7 @@ public class OrgTagCacheService {
     private static final String USER_PRIMARY_ORG_KEY_PREFIX = "user:primary_org:";
     private static final String USER_EFFECTIVE_TAGS_KEY_PREFIX = "user:effective_org_tags:";
     private static final long CACHE_TTL_HOURS = 24;
-    private static final String DEFAULT_ORG_TAG = "DEFAULT";
+    private static final String DEFAULT_ORG_TAG = "default";
     
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;

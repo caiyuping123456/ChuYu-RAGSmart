@@ -29,8 +29,8 @@ public class EsDocument {
     /**
      * 完整构造函数，包含权限字段
      */
-    public EsDocument(String id, String fileMd5, int chunkId, String content, 
-                     float[] vector, String modelVersion, 
+    public EsDocument(String id, String fileMd5, int chunkId, String content,
+                     float[] vector, String modelVersion,
                      String userId, String orgTag, boolean isPublic) {
         this.id = id;
         this.fileMd5 = fileMd5;
@@ -42,6 +42,6 @@ public class EsDocument {
         this.orgTag = orgTag;
         this.isPublic = isPublic;
     }
-    
+
 
 }

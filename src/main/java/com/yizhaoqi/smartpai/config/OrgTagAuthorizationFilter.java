@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 public class OrgTagAuthorizationFilter extends OncePerRequestFilter {
 
     private static final Logger logger = LoggerFactory.getLogger(OrgTagAuthorizationFilter.class);
-    private static final String DEFAULT_ORG_TAG = "DEFAULT"; // 默认组织标签
+    private static final String DEFAULT_ORG_TAG = "default"; // 默认组织标签
     private static final String PRIVATE_TAG_PREFIX = "PRIVATE_"; // 私人组织标签前缀
 
     @Autowired

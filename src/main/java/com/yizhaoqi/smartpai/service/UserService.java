@@ -44,7 +44,7 @@ public class UserService {
 
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
     
-    private static final String DEFAULT_ORG_TAG = "DEFAULT";
+    private static final String DEFAULT_ORG_TAG = "default";
     private static final String DEFAULT_ORG_NAME = "默认组织";
     private static final String DEFAULT_ORG_DESCRIPTION = "系统默认组织标签，自动分配给所有新用户";
     private static final String PRIVATE_TAG_PREFIX = "PRIVATE_";
@@ -125,13 +125,13 @@ public class UserService {
         /**
          * 将标志和主标志进行设置，都是同一个，就是用户的名字，
          */
-        // 只分配私人组织标签
-        user.setOrgTags(privateTagId);
+        // 分配私人组织标签和默认组织标签
+        user.setOrgTags(privateTagId + "," + DEFAULT_ORG_TAG);
 
         //TODO 这里还有测试一下
         // 设置私人组织标签为主组织标签
         user.setPrimaryOrg(privateTagId);
-        
+
         userRepository.save(user);
 
         /**
@@ -139,9 +139,9 @@ public class UserService {
          * 分为主要标志和全部标志
          */
         // 缓存组织标签信息
-        orgTagCacheService.cacheUserOrgTags(username, List.of(privateTagId));
+        orgTagCacheService.cacheUserOrgTags(username, List.of(privateTagId, DEFAULT_ORG_TAG));
         orgTagCacheService.cacheUserPrimaryOrg(username, privateTagId);
-        
+
         logger.info("User registered successfully with private organization tag: {}", username);
     }
 
@@ -196,8 +196,8 @@ public class UserService {
         /**
          * 将标志和主标志进行设置，都是同一个，就是用户的名字，
          */
-        // 只分配私人组织标签
-        user.setOrgTags(privateTagId);
+        // 分配私人组织标签和默认组织标签
+        user.setOrgTags(privateTagId + "," + DEFAULT_ORG_TAG);
 
         //TODO 这里还有测试一下
         // 设置私人组织标签为主组织标签
@@ -210,7 +210,7 @@ public class UserService {
          * 分为主要标志和全部标志
          */
         // 缓存组织标签信息
-        orgTagCacheService.cacheUserOrgTags(username, List.of(privateTagId));
+        orgTagCacheService.cacheUserOrgTags(username, List.of(privateTagId, DEFAULT_ORG_TAG));
         orgTagCacheService.cacheUserPrimaryOrg(username, privateTagId);
 
         logger.info("User registered successfully with private organization tag: {}", username);

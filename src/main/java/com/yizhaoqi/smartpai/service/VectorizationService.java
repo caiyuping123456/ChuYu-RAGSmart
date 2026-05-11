@@ -129,4 +129,14 @@ public class VectorizationService {
                 ))
                 .toList();
     }
+
+    /**
+     * 这个是多模态向量存储到ES中(图片或者PDF)
+     * @param vectors
+     */
+    // TODO 写
+    public void embeddingSaveES(String fileMd5, String userId, String orgTag, boolean isPublic,List<float[]> vectors){
+
+    }
+
 }

@@ -20,7 +20,7 @@
         </NButton>
       </div>
     </div>
-    
+
     <!-- 预览内容 -->
     <div class="preview-content">
       <template v-if="loading">
@@ -32,6 +32,14 @@
         <div class="flex flex-col items-center justify-center h-full text-gray-500">
           <icon-mdi-alert-circle class="text-48 mb-4" />
           <p>{{ error }}</p>
+        </div>
+      </template>
+      <template v-else-if="previewType === 'pdf'">
+        <iframe :src="previewUrl" class="pdf-iframe" />
+      </template>
+      <template v-else-if="previewType === 'image'">
+        <div class="image-wrapper">
+          <img :src="previewUrl" :alt="fileName" class="preview-image" />
         </div>
       </template>
       <template v-else>
@@ -66,6 +74,8 @@ const loading = ref(false);
 const downloading = ref(false);
 const content = ref('');
 const error = ref('');
+const previewType = ref<'text' | 'pdf' | 'image' | 'unsupported' | 'error'>('text');
+const previewUrl = ref('');
 
 // 获取文件图标
 function getFileIcon(fileName: string) {
@@ -94,17 +104,22 @@ watch(() => props.visible, async (visible) => {
 // 加载预览内容
 async function loadPreviewContent() {
   if (!props.fileName) return;
-  
+
   loading.value = true;
   error.value = '';
   content.value = '';
-  
+  previewType.value = 'text';
+  previewUrl.value = '';
+
   try {
     const token = localStorage.getItem('token');
     const { error: requestError, data } = await request<{
       fileName: string;
-      content: string;
+      content?: string;
       fileSize: number;
+      previewType: string;
+      previewUrl?: string;
+      fileType?: string;
     }>({
       url: '/documents/preview',
       params: {
@@ -112,11 +127,17 @@ async function loadPreviewContent() {
         token: token || undefined
       }
     });
-    
+
     if (requestError) {
       error.value = '预览失败：' + (requestError.message || '未知错误');
     } else if (data) {
-      content.value = data.content;
+      previewType.value = data.previewType as typeof previewType.value;
+      if (data.previewUrl) {
+        previewUrl.value = data.previewUrl;
+      }
+      if (data.content) {
+        content.value = data.content;
+      }
     }
   } catch (err: any) {
     error.value = '预览失败：' + (err.message || '网络错误');
@@ -128,9 +149,9 @@ async function loadPreviewContent() {
 // 下载文件
 async function downloadFile() {
   if (!props.fileName) return;
-  
+
   downloading.value = true;
-  
+
   try {
     const token = localStorage.getItem('token');
     const { error: requestError, data } = await request<{
@@ -144,11 +165,10 @@ async function downloadFile() {
         token: token || undefined
       }
     });
-    
+
     if (requestError) {
       window.$message?.error('下载失败：' + (requestError.message || '未知错误'));
     } else if (data) {
-      // 使用预签名URL下载文件
       const link = document.createElement('a');
       link.href = data.downloadUrl;
       link.download = data.fileName;
@@ -173,23 +193,39 @@ function closePreview() {
 <style scoped lang="scss">
 .file-preview-container {
   @apply h-full flex flex-col bg-white border-l border-gray-200;
-  
+
   .preview-header {
     @apply flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50;
   }
-  
+
   .preview-content {
     @apply flex-1 overflow-hidden;
-    
+
     .content-wrapper {
       @apply h-full overflow-auto p-4;
     }
-    
+
     .preview-text {
       @apply text-sm font-mono whitespace-pre-wrap break-words;
       font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
       line-height: 1.5;
       margin: 0;
+    }
+
+    .pdf-iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    .image-wrapper {
+      @apply h-full overflow-auto flex items-center justify-center p-4;
+
+      .preview-image {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+      }
     }
   }
 }
