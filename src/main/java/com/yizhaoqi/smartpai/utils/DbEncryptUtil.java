@@ -1,7 +1,6 @@
 package com.yizhaoqi.smartpai.utils;
 
 import com.yizhaoqi.smartpai.config.DbEncryptConfig;
-import jakarta.annotation.Resource;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -25,6 +24,7 @@ import org.springframework.stereotype.Component;
 public class DbEncryptUtil {
 
     private final DbEncryptConfig dbEncryptConfig;
+
 
     public DbEncryptUtil(DbEncryptConfig dbEncryptConfig) {
         this.dbEncryptConfig = dbEncryptConfig;

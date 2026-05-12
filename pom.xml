@@ -217,6 +217,13 @@
             <version>portable-1.8.6</version>
         </dependency>
 
+        <!-- Source: https://mvnrepository.com/artifact/io.qdrant/client -->
+        <dependency>
+            <groupId>io.qdrant</groupId>
+            <artifactId>client</artifactId>
+            <version>1.17.0</version>
+        </dependency>
+
     </dependencies>
 
     <build>

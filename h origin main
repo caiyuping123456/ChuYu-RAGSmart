@@ -1,0 +1,32 @@
+*   [33m38b40f2[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Merge remote-tracking branch 'origin/detached'
+[31m|[m[32m\[m  
+[31m|[m *   [33m90539e4[m[33m ([m[1;31morigin/detached[m[33m)[m RAG多模态解析
+[31m|[m [33m|[m[34m\[m  
+* [33m|[m [34m\[m   [33mdceed5a[m[33m ([m[1;31morigin/main[m[33m)[m Merge remote-tracking branch 'origin/main'
+[35m|[m[36m\[m [33m\[m [34m\[m  
+[35m|[m * [33m\[m [34m\[m   [33mf7c276a[m Merge remote-tracking branch 'origin/main'
+[35m|[m [1;31m|[m[1;32m\[m [33m\[m [34m\[m  
+[35m|[m [1;31m|[m * [33m\[m [34m\[m   [33m6c39ec3[m Merge remote-tracking branch 'origin/main'
+[35m|[m [1;31m|[m [33m|[m[34m\[m [33m\[m [34m\[m  
+[35m|[m [1;31m|[m [33m|[m [34m|[m[33m/[m [34m/[m  
+[35m|[m [1;31m|[m [33m|[m[33m/[m[34m|[m [34m/[m   
+[35m|[m [1;31m|[m [33m|[m [34m|[m[34m/[m    
+[35m|[m * [33m|[m [34m|[m   [33mceb79cc[m add：自定义Agent外挂MCP
+[35m|[m [33m|[m[34m\[m [33m\[m [34m\[m  
+[35m|[m [33m|[m [34m|[m[33m/[m [34m/[m  
+[35m|[m [33m|[m[33m/[m[34m|[m [34m/[m   
+[35m|[m [33m|[m [34m|[m[34m/[m    
+* [33m|[m [34m|[m   [33m35a3637[m MCP加密，MCP接入修正
+[33m|[m[34m\[m [33m\[m [34m\[m  
+[33m|[m [34m|[m[33m/[m [34m/[m  
+[33m|[m[33m/[m[34m|[m [34m/[m   
+[33m|[m [34m|[m[34m/[m    
+[33m|[m *   [33ma2ef9ad[m Merge remote-tracking branch 'origin/main'
+[33m|[m [33m|[m[34m\[m  
+* [33m|[m [34m\[m   [33m103bd26[m add：添加用户协议和隐私协议
+[33m|[m[34m\[m [33m\[m [34m\[m  
+[33m|[m [34m|[m[33m/[m [34m/[m  
+[33m|[m[33m/[m[34m|[m [34m/[m   
+[33m|[m [34m|[m[34m/[m    
+[33m|[m *   [33m374a246[m Merge remote-tracking branch 'origin/main'
+[33m|[m [1;31m|[m[1;32m\[m  
