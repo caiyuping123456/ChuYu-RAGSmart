@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import static io.qdrant.client.QueryFactory.nearest;
+
 /**
  * @author caiyuping
  * @date 2026/5/19 21:01
@@ -63,13 +65,32 @@ public class QDrantUtils {
         //判断是不是有这个集合
         if (!hasCollection()) createCollection();
         try {
-            Points.UpdateResult operationInfo = qdrantClient.upsertAsync("test_collection", points).get();
+            Points.UpdateResult operationInfo = qdrantClient.upsertAsync(qDrantConfig.getCollection(), points).get();
             log.info("向量入库成功", operationInfo);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         } catch (ExecutionException e) {
             throw new RuntimeException(e);
         }
+    }
 
+    /**
+     * 这个是查询的核心代码，主要是用来根据向量查询相关的文本内容
+     * @param vectors
+     * @return
+     */
+    public List<Points.ScoredPoint> getOperationInfo(List<Float> vectors){
+        try {
+            return qdrantClient.queryAsync(Points.QueryPoints.newBuilder()
+                    .setCollectionName(qDrantConfig.getCollection())
+                    .setQuery(nearest(vectors))
+                    .setWithPayload(Points.WithPayloadSelector.newBuilder().setEnable(true).build())   // 返回 payload
+                    .setLimit(10)
+                    .build()).get();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

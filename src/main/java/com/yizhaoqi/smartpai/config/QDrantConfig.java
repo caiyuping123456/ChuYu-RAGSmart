@@ -24,4 +24,6 @@ public class QDrantConfig {
     private String collection;
     @Value("${vl-embedding.api.dimension}")
     private Integer dimension;
+    @Value("${qdrant.api_key}")
+    private String apiKey;
 }

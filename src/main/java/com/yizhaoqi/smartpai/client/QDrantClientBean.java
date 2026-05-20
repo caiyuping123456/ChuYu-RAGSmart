@@ -20,10 +20,12 @@ public class QDrantClientBean {
 
     @Bean
     public QdrantClient qdrantClient(){
-        return new QdrantClient(
-                QdrantGrpcClient.newBuilder(qDrantConfig.getUrl(),
-                        Integer.parseInt(qDrantConfig.getPort()),
-                        qDrantConfig.getHttps()).build());
-
+        QdrantGrpcClient.Builder builder = QdrantGrpcClient.newBuilder(qDrantConfig.getUrl(),
+                Integer.parseInt(qDrantConfig.getPort()),
+                qDrantConfig.getHttps());
+        if(qDrantConfig.getApiKey() != null && !qDrantConfig.getApiKey().isEmpty()) {
+            builder.withApiKey(qDrantConfig.getApiKey());
+        }
+        return new QdrantClient(builder.build());
     }
 }
